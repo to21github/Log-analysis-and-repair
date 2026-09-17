@@ -1,0 +1,53 @@
+name: 日志分析与修复
+version: "1.6.2"
+slug: log_analyzer
+description: 抓取分析 Home Assistant Core / Supervisor 日志，识别报错、插件崩溃、实体不可用、MQTT 断开等问题，并自动修复可修复项
+url: https://github.com/to21github/Log-analysis-and-repair
+arch:
+  - armhf
+  - armv7
+  - aarch64
+  - amd64
+  - i386
+startup: services
+boot: auto
+init: false
+watchdog: true
+
+# 访问 Supervisor API（抓取日志 / 重启插件）与 Core API（查询实体 / 重载集成）
+hassio_api: true
+hassio_role: manager
+homeassistant_api: true
+
+map:
+  - homeassistant_config:ro
+  - addon_config:rw
+
+# 内置网页面板（Ingress），在左侧边栏显示
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:file-document-search-outline
+panel_title: 日志分析
+panel_admin: true
+
+options:
+  scan_interval: 1800
+  log_lines: 3000
+  auto_repair: false
+  repair_cooldown: 3600
+  restart_crashed_addons: true
+  reload_integrations: true
+  repair_mqtt: true
+  purge_recorder: true
+  keep_reports: 10
+
+schema:
+  scan_interval: int(60,)
+  log_lines: int(100,)
+  auto_repair: bool
+  repair_cooldown: int(0,)
+  restart_crashed_addons: bool
+  reload_integrations: bool
+  repair_mqtt: bool
+  purge_recorder: bool
+  keep_reports: int(1,)
