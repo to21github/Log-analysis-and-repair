@@ -36,7 +36,7 @@ h1 { font-size:22px; font-weight:600; color:#fff; letter-spacing:.5px; }
 @keyframes r { from { transform:scaleX(-1) rotate(0deg); }
                to { transform:scaleX(-1) rotate(360deg); } }
 .panel { background:var(--card); border:1px solid var(--line); border-radius:14px;
-         display:grid; grid-template-columns:repeat(5,1fr); margin-bottom:20px;
+         display:grid; grid-template-columns:repeat(4,1fr); margin-bottom:20px;
          overflow:hidden; }
 .panel .cell { padding:16px 10px; display:flex; flex-direction:column;
                align-items:center; justify-content:center; text-align:center; }
@@ -76,7 +76,6 @@ pre { background:var(--deep); border:1px solid var(--line); border-radius:8px;
       padding:8px 10px; font-size:12px; overflow:auto; margin-top:6px;
       white-space:pre-wrap; word-break:break-all; color:#c9c9ce; }
 .empty { text-align:center; color:var(--gray); padding:36px 0; }
-footer { margin-top:18px; color:var(--gray); font-size:11px; text-align:center; }
 </style>
 </head>
 <body>
@@ -106,7 +105,6 @@ footer { margin-top:18px; color:var(--gray); font-size:11px; text-align:center; 
 <div class="panel" id="cards"></div>
 <h2>问题列表</h2>
 <div id="issues"></div>
-<footer>数据来源：Core / Supervisor 日志</footer>
 
 <script>
 const SEV = {error:'错误', warning:'警告', info:'提示'};
@@ -153,7 +151,6 @@ function render(rep) {
     cell(m.issue_count ?? 0, '发现问题', ''),
     cell(m.repairable ?? 0, '可修复', 'blue'),
     cell(m.repaired ?? 0, '已修复', 'green'),
-    cell(s.addons_error ?? 0, '异常', 'orange'),
     cell(s.error_lines ?? 0, '错误', 'red'),
   ];
   cardsEl.innerHTML = cells.join('');

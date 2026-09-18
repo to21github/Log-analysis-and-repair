@@ -17,7 +17,7 @@ import webui
 
 OPTIONS_PATH = "/data/options.json"
 WEB_PORT = 8124  # 与 config.yaml 的 ingress_port 保持一致
-VERSION = "1.6.6"  # 与 config.yaml 的 version 保持一致
+VERSION = "1.6.7"  # 与 config.yaml 的 version 保持一致
 
 DEFAULTS = {
     "scan_interval": 1800,      # 自动扫描间隔（秒）
@@ -112,21 +112,17 @@ class App:
             started = time.time()
             print("[日志分析] 开始扫描…")
 
-            # 1. 采集
+            # 1. 采集（纯日志分析：仅抓取 Core / Supervisor 日志与环境信息）
             core_text, core_src = self.col.core_logs()
             sup_text, sup_src = self.col.supervisor_logs()
-            addons = self.col.addon_states()
-            entities = self.col.entity_states()
-            entries = self.col.config_entries()
             host = self.col.host_info()
             db_size = self.col.db_size()
             log_exists = self.col.core_log_exists()
-            print("[日志分析] 采集完成：Core %s 行 / Supervisor %s 行 / 实体 %d 个 / 插件 %d 个"
-                  % (len(core_text.splitlines()), len(sup_text.splitlines()),
-                     len(entities), len(addons)))
+            print("[日志分析] 采集完成：Core %s 行 / Supervisor %s 行"
+                  % (len(core_text.splitlines()), len(sup_text.splitlines())))
 
             # 2. 分析
-            result = analyzer.analyze(core_text, sup_text, addons, entities, entries,
+            result = analyzer.analyze(core_text, sup_text,
                                       host=host, db_size=db_size,
                                       core_log_exists=log_exists)
             issues = result["issues"]

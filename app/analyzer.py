@@ -769,9 +769,9 @@ def check_environment(host, db_size, core_log_exists):
     return issues, env
 
 
-def analyze(core_text, supervisor_text, addons, entities, entries,
+def analyze(core_text, supervisor_text,
             host=None, db_size=0, core_log_exists=True):
-    """综合分析入口，返回问题列表与统计信息。"""
+    """综合分析入口，返回问题列表与统计信息（纯日志 + 环境数据）。"""
     core_lines = parse_lines(core_text, "core")
     sup_lines = parse_lines(supervisor_text, "supervisor")
     lines = core_lines + sup_lines
@@ -779,15 +779,6 @@ def analyze(core_text, supervisor_text, addons, entities, entries,
     issues = apply_rules(lines)
     issues.extend(detect_tracebacks(core_text))
     issues.extend(aggregate_uncategorized(lines))
-
-    entity_issues, entity_total, unknown_count = check_entities(entities)
-    issues.extend(entity_issues)
-
-    entry_issues = check_entries(entries)
-    issues.extend(entry_issues)
-
-    addon_issues = check_addons(addons)
-    issues.extend(addon_issues)
 
     env_issues, env = check_environment(host or {}, db_size, core_log_exists)
     issues.extend(env_issues)
@@ -802,11 +793,6 @@ def analyze(core_text, supervisor_text, addons, entities, entries,
         "error_lines": sum(1 for l in lines if l["level"] in ("ERROR", "CRITICAL")),
         "warning_lines": sum(1 for l in lines if l["level"] == "WARNING"),
         "tracebacks": sum(1 for i in issues if i["id"] == "traceback"),
-        "entities_total": entity_total,
-        "entities_unknown": unknown_count,
-        "addons_total": len(addons or []),
-        "addons_error": len(addon_issues),
-        "entries_error": len(entry_issues),
     }
     stats.update(env)
     return {"issues": issues, "stats": stats}
