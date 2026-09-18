@@ -21,7 +21,7 @@ PAGE = """<!DOCTYPE html>
         --line:#2a2a32; --deep:#131317; }
 * { box-sizing:border-box; margin:0; padding:0; }
 body { font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
-       background:var(--bg); color:var(--text); padding:18px; max-width:960px; margin:0 auto; }
+       background:var(--bg); color:var(--text); padding:18px; max-width:1400px; margin:0 auto; }
 header { display:flex; align-items:flex-start; justify-content:space-between;
          gap:12px; flex-wrap:wrap; margin-bottom:16px; }
 h1 { font-size:22px; font-weight:600; color:#fff; letter-spacing:.5px; }
