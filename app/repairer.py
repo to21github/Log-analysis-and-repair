@@ -37,8 +37,6 @@ def pick_base_dir():
     return fallback
 
 
-HISTORY_PATH = os.path.join(pick_base_dir(), "repair_history.json")
-
 # 修复动作的中文名称（用于报告与网页展示）
 ACTION_NAMES = {
     "reload_mqtt": "重载 MQTT 集成",
@@ -56,29 +54,7 @@ class Repairer:
         self.col = collector
         self.cooldowns = {}  # "action:target" -> 上次修复时间戳
         self.events = []     # 最近的修复事件（新的在前）
-        self._load()
-
-    # ---------------- 持久化 ----------------
-    def _load(self):
-        try:
-            with open(HISTORY_PATH, "r", encoding="utf-8") as fh:
-                data = json.load(fh)
-            self.cooldowns = data.get("cooldowns", {})
-            self.events = data.get("events", [])
-        except (OSError, ValueError):
-            pass
-
-    def _save(self):
-        os.makedirs(os.path.dirname(HISTORY_PATH), exist_ok=True)
-        tmp = HISTORY_PATH + ".tmp"
-        try:
-            # 原子写：先写临时文件再替换，避免网页并发读取到半截内容
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"cooldowns": self.cooldowns, "events": self.events[:MAX_EVENTS]},
-                          fh, ensure_ascii=False, indent=2)
-            os.replace(tmp, HISTORY_PATH)
-        except OSError as exc:
-            print("[日志分析] 保存修复历史失败：%s" % exc)
+        # 重启后重新统计：冷却与已修复状态仅在本次运行期间有效，不加载历史
 
     # ---------------- 执行入口 ----------------
     def repair_issues(self, issues, manual=False):
@@ -125,7 +101,6 @@ class Repairer:
                   % (ACTION_NAMES.get(action, action), target or issue.get("title", ""),
                      "成功" if ok else "失败"))
             results.append(self._result(issue, "ok" if ok else "fail", detail))
-        self._save()
         return results
 
     @staticmethod

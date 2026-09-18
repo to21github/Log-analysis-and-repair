@@ -59,8 +59,7 @@ h1 { font-size:22px; font-weight:600; line-height:1.1; color:var(--title);
 .panel .num.red { color:var(--red); } .panel .num.orange { color:var(--orange); }
 .panel .num.green { color:var(--green); } .panel .num.blue { color:var(--blue); }
 @media (max-width:560px) {
-  /* 移动端主标题与副标题加粗（700：部分 Android WebView 不渲染中文 600，改用标准粗体） */
-  h1 { font-weight:700; }
+  /* 主标题统一规格：22px / 600 / 0.5px / 1.1（继承桌面端定义） */
   .subtitle { font-weight:400; }
   /* 移动端统计卡片压缩为单行，避免分 3 行显示 */
   .panel { display:flex; }
