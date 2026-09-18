@@ -17,7 +17,7 @@ PAGE = """<!DOCTYPE html>
 <title>日志分析与修复</title>
 <style>
 :root { --blue:#00a8e8; --red:#ff1744; --orange:#ff6d00; --green:#00c853;
-        --gray:#8b8d95; --bg:#111114; --card:#1b1b20; --text:#e9e9ec;
+        --gray:#9a9a9a; --bg:#111114; --card:#1b1b20; --text:#e9e9ec;
         --line:#2a2a32; --deep:#131317; }
 * { box-sizing:border-box; margin:0; padding:0; }
 body { font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
