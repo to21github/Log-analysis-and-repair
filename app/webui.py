@@ -37,7 +37,7 @@ header { display:flex; align-items:flex-start; justify-content:space-between;
          gap:24px; flex-wrap:wrap; margin-bottom:24px; }
 h1 { font-size:22px; font-weight:600; line-height:1.1; color:var(--title);
      letter-spacing:.5px; }
-.subtitle { color:#9a9a9a; font-size:12px; line-height:1.3; margin-top:8px; }
+.subtitle { color:#9a9a9a; font-size:12px; font-weight:400; line-height:1.3; margin-top:8px; }
 .iconbtn { width:46px; height:46px; border-radius:50%; background:var(--card);
            border:1px solid var(--line); cursor:pointer; display:flex;
            align-items:center; justify-content:center; flex-shrink:0; }
@@ -61,7 +61,7 @@ h1 { font-size:22px; font-weight:600; line-height:1.1; color:var(--title);
 @media (max-width:560px) {
   /* 移动端主标题与副标题加粗（700：部分 Android WebView 不渲染中文 600，改用标准粗体） */
   h1 { font-weight:700; }
-  .subtitle { font-weight:700; }
+  .subtitle { font-weight:400; }
   /* 移动端统计卡片压缩为单行，避免分 3 行显示 */
   .panel { display:flex; }
   .panel .cell { flex:1; min-width:0; padding:12px 2px; border-top:none; }
