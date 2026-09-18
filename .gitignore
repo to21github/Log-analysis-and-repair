@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 *.zip
 demo_webui_server.py
+.DS_Store
