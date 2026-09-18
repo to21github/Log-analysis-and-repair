@@ -332,11 +332,9 @@ RULES = [
         "title": "数据库未正常关闭",
         "pattern": r"could not validate that the sqlite3 database",
         "severity": "warning",
-        "action": "purge_recorder",
-        "switch": "purge_recorder",
         "advice": "历史数据库上次没有正常关闭，通常是树莓派意外断电或崩溃造成的。"
-                  "HA 会自动恢复，但反复出现会损伤数据库，建议检查电源稳定性；"
-                  "持续异常可清理历史数据或重建数据库。",
+                  "HA 会自动恢复（SQLite 自动回滚未完成事务），无需手动修复；"
+                  "反复出现会损伤数据库，建议检查电源稳定性。",
     },
     {
         "id": "platform_setup_error",

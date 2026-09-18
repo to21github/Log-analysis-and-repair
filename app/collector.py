@@ -157,12 +157,13 @@ class Collector:
         return self.ha_api("/config/config_entries/entry/list") or []
 
     # ---------------- 修复动作 ----------------
-    def call_service(self, domain, service, payload=None):
-        """调用 HA 服务，如 recorder.purge。"""
+    def call_service(self, domain, service, payload=None, timeout=60):
+        """调用 HA 服务，如 recorder.purge。耗时服务可加大 timeout。"""
         return request(
             "/core/api/services/%s/%s" % (domain, service),
             method="POST",
             body=payload or {},
+            timeout=timeout,
         )
 
     def reload_entry(self, entry_id):

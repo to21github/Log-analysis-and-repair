@@ -146,12 +146,15 @@ class Repairer:
             if action == "restart_addon":
                 return self._restart_addon(issue.get("target", ""))
             if action == "purge_recorder":
-                code, body = self.col.call_service("recorder", "purge", {})
+                # 清理旧数据可能较慢（树莓派+大库），给足超时
+                code, body = self.col.call_service(
+                    "recorder", "purge", {}, timeout=600)
                 return code == 200, "recorder.purge HTTP %s %s" % (code, body[:200])
             if action == "repack_database":
                 # purge + repack：清旧数据并 VACUUM 压缩文件（耗时操作，冷却机制防重复）
                 code, body = self.col.call_service(
-                    "recorder", "purge", {"repack": True, "apply_filter": True})
+                    "recorder", "purge",
+                    {"repack": True, "apply_filter": True}, timeout=1800)
                 return code == 200, "recorder.purge(repack) HTTP %s %s" % (code, body[:200])
             return False, "未知修复动作：%s" % action
         except Exception as exc:  # 修复失败不应中断整体流程
