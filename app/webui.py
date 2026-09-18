@@ -76,7 +76,6 @@ pre { background:var(--deep); border:1px solid var(--line); border-radius:8px;
       padding:8px 10px; font-size:12px; overflow:auto; margin-top:6px;
       white-space:pre-wrap; word-break:break-all; color:#c9c9ce; }
 .empty { text-align:center; color:var(--gray); padding:36px 0; }
-footer { margin-top:18px; color:var(--gray); font-size:11px; text-align:center; }
 </style>
 </head>
 <body>
@@ -106,7 +105,6 @@ footer { margin-top:18px; color:var(--gray); font-size:11px; text-align:center; 
 <div class="panel" id="cards"></div>
 <h2>问题列表</h2>
 <div id="issues"></div>
-<footer>数据来源：Core / Supervisor 日志 · 实体状态 · 插件状态 · 集成配置项</footer>
 
 <script>
 const SEV = {error:'错误', warning:'警告', info:'提示'};
