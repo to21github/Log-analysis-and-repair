@@ -17,21 +17,28 @@ PAGE = """<!DOCTYPE html>
 <title>日志分析与修复</title>
 <style>
 :root { --blue:#00a8e8; --red:#ff1744; --orange:#ff6d00; --green:#00c853;
-        --gray:#9a9a9a; --bg:#111111; --card:#181818; --text:#e9e9ec;
-        --line:#363636; --deep:#131317; }
+        --gray:#9a9a9a; --bg:#111111; --card:#181818; --text:#e8e8e8;
+        --line:#363636; --deep:#131317; --muted:#a0a0a0; }
+/* 浅色模式（跟随系统） */
+@media (prefers-color-scheme: light) {
+  :root { --blue:#0277bd; --red:#d32f2f; --orange:#e65100; --green:#2e7d32;
+          --gray:#7b818d; --bg:#fafafa; --card:#ffffff; --text:#171b20;
+          --line:#d8d8d8; --deep:#f0f0f0; --muted:#7b818d; }
+}
 * { box-sizing:border-box; margin:0; padding:0; }
 body { font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
        background:var(--bg); color:var(--text); padding:18px; max-width:1414px; margin:0 auto; }
 header { display:flex; align-items:flex-start; justify-content:space-between;
          gap:12px; flex-wrap:wrap; margin-bottom:16px; }
-h1 { font-size:22px; font-weight:600; color:#fff; letter-spacing:.5px; }
+h1 { font-size:22px; font-weight:600; color:var(--text); letter-spacing:.5px; }
 .subtitle { color:var(--gray); font-size:12px; margin-top:4px; }
 .iconbtn { width:46px; height:46px; border-radius:50%; background:var(--card);
            border:1px solid var(--line); cursor:pointer; display:flex;
            align-items:center; justify-content:center; flex-shrink:0; }
-.iconbtn:hover { background:#232329; }
+.iconbtn:hover { border-color:var(--muted); }
 .iconbtn:disabled { cursor:not-allowed; opacity:.55; }
-.iconbtn svg { width:22px; height:22px; stroke:var(--text); transform:scaleX(-1); }
+.iconbtn svg { width:22px; height:22px; stroke:var(--muted); transform:scaleX(-1); }
+.iconbtn:hover:not(:disabled) svg { stroke:var(--text); }
 .iconbtn.scanning svg { animation:r 1s linear infinite; }
 @keyframes r { from { transform:scaleX(-1) rotate(0deg); }
                to { transform:scaleX(-1) rotate(360deg); } }
@@ -55,15 +62,16 @@ h1 { font-size:22px; font-weight:600; color:#fff; letter-spacing:.5px; }
   .panel .cell + .cell { border-left:1px solid var(--line); }
   .panel .num { font-size:22px; margin-top:2px; }
   .panel .lab { font-size:10px; }
-  /* 移动端刷新按钮缩小 */
-  .iconbtn { width:40px; height:40px; }
-  .iconbtn svg { width:19px; height:19px; }
 }
-h2 { font-size:15px; margin:18px 0 10px; color:#fff; }
+/* 移动端刷新按钮缩小至 40×40（SVG 保持 22×22） */
+@media (max-width:700px) {
+  .iconbtn { width:40px; height:40px; }
+}
+h2 { font-size:15px; margin:18px 0 10px; color:var(--text); }
 .issue { background:var(--card); border:1px solid var(--line); border-radius:12px;
          padding:14px; margin-bottom:10px; }
 .issue .head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.issue .head .t { font-weight:600; font-size:15px; color:#fff; }
+.issue .head .t { font-weight:600; font-size:15px; color:var(--text); }
 .badge { font-size:11px; padding:2px 8px; border-radius:10px; color:#fff; }
 .badge.error { background:var(--red); } .badge.warning { background:var(--orange); }
 .badge.info { background:var(--blue); }
