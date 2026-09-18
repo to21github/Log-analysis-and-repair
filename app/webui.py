@@ -53,9 +53,9 @@ h1 { font-size:22px; font-weight:600; color:var(--text); letter-spacing:.5px; }
 .panel .num.red { color:var(--red); } .panel .num.orange { color:var(--orange); }
 .panel .num.green { color:var(--green); } .panel .num.blue { color:var(--blue); }
 @media (max-width:560px) {
-  /* 移动端主标题加粗 600，副标题粗细 400 */
+  /* 移动端主标题与副标题均加粗 */
   h1 { font-weight:600; }
-  .subtitle { font-weight:400; }
+  .subtitle { font-weight:600; }
   /* 移动端统计卡片压缩为单行，避免分 3 行显示 */
   .panel { display:flex; }
   .panel .cell { flex:1; min-width:0; padding:12px 2px; border-top:none; }
