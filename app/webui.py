@@ -26,8 +26,11 @@ PAGE = """<!DOCTYPE html>
           --line:#d8d8d8; --deep:#f0f0f0; --muted:#7b818d; }
 }
 * { box-sizing:border-box; margin:0; padding:0; }
+/* 背景固定：html 层同色，禁止横向滚动，避免移动端左右拖动时背景乱跑露白 */
+html { background:var(--bg); overflow-x:hidden; overscroll-behavior-x:none; }
 body { font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
-       background:var(--bg); color:var(--text); padding:18px; max-width:1414px; margin:0 auto; }
+       background:var(--bg); color:var(--text); padding:18px; max-width:1414px;
+       margin:0 auto; overflow-x:hidden; }
 header { display:flex; align-items:flex-start; justify-content:space-between;
          gap:12px; flex-wrap:wrap; margin-bottom:16px; }
 h1 { font-size:22px; font-weight:600; color:var(--text); letter-spacing:.5px; }
