@@ -52,6 +52,9 @@ h1 { font-size:22px; font-weight:600; color:#fff; letter-spacing:.5px; }
   .panel .cell + .cell { border-left:1px solid var(--line); }
   .panel .num { font-size:22px; margin-top:2px; }
   .panel .lab { font-size:10px; }
+  /* 移动端刷新按钮缩小 */
+  .iconbtn { width:40px; height:40px; }
+  .iconbtn svg { width:19px; height:19px; }
 }
 h2 { font-size:15px; margin:18px 0 10px; color:#fff; }
 .issue { background:var(--card); border:1px solid var(--line); border-radius:12px;
@@ -81,16 +84,7 @@ pre { background:var(--deep); border:1px solid var(--line); border-radius:8px;
 <body>
 <header>
   <div>
-    <div style="display:flex;align-items:center;gap:9px;">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#00a8e8"
-           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4"/>
-        <path d="M14 2v6h6"/>
-        <circle cx="15.5" cy="17.5" r="3.5"/>
-        <line x1="18.2" y1="20.2" x2="21" y2="23"/>
-      </svg>
-      <h1>日志分析与修复</h1>
-    </div>
+    <h1>日志分析与修复</h1>
     <div class="subtitle">Home Assistant 系统日志分析与修复问题</div>
   </div>
   <button id="scanBtn" class="iconbtn" onclick="doScan()" title="立即扫描">

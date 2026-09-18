@@ -1,5 +1,5 @@
 name: 日志分析与修复
-version: "1.6.7"
+version: "1.6.8"
 slug: log_analyzer
 description: 抓取分析 Home Assistant Core / Supervisor 日志，识别报错、插件崩溃、实体不可用、MQTT 断开等问题，并自动修复可修复项
 url: https://github.com/to21github/Log-analysis-and-repair
@@ -23,7 +23,7 @@ map:
 ingress: true
 ingress_port: 8124
 panel_icon: mdi:file-document-search-outline
-panel_title: 日志分析
+panel_title: 日志分析与修复
 panel_admin: true
 
 options:
