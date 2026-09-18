@@ -12,7 +12,6 @@ arch:
 startup: services
 boot: auto
 init: false
-watchdog: true
 
 # 访问 Supervisor API（抓取日志 / 重启插件）与 Core API（查询实体 / 重载集成）
 hassio_api: true
