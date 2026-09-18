@@ -26,7 +26,7 @@ header { display:flex; align-items:flex-start; justify-content:space-between;
          gap:12px; flex-wrap:wrap; margin-bottom:16px; }
 h1 { font-size:22px; font-weight:600; color:#fff; letter-spacing:.5px; }
 .subtitle { color:var(--gray); font-size:13px; margin-top:4px; }
-.iconbtn { width:46px; height:46px; border-radius:12px; background:var(--card);
+.iconbtn { width:46px; height:46px; border-radius:50%; background:var(--card);
            border:1px solid var(--line); cursor:pointer; display:flex;
            align-items:center; justify-content:center; flex-shrink:0; }
 .iconbtn:hover { background:#232329; }
@@ -46,10 +46,12 @@ h1 { font-size:22px; font-weight:600; color:#fff; letter-spacing:.5px; }
 .panel .num.red { color:var(--red); } .panel .num.orange { color:var(--orange); }
 .panel .num.green { color:var(--green); } .panel .num.blue { color:var(--blue); }
 @media (max-width:560px) {
-  .panel { grid-template-columns:repeat(2,1fr); }
-  .panel .cell { border-top:1px solid var(--line); }
-  .panel .cell:nth-child(-n+2) { border-top:none; }
-  .panel .cell:nth-child(odd) { border-left:none; }
+  /* 移动端统计卡片压缩为单行，避免分 3 行显示 */
+  .panel { display:flex; }
+  .panel .cell { flex:1; min-width:0; padding:12px 2px; border-top:none; }
+  .panel .cell + .cell { border-left:1px solid var(--line); }
+  .panel .num { font-size:22px; margin-top:2px; }
+  .panel .lab { font-size:10px; }
 }
 h2 { font-size:15px; margin:18px 0 10px; color:#fff; }
 .issue { background:var(--card); border:1px solid var(--line); border-radius:12px;
@@ -80,7 +82,16 @@ footer { margin-top:18px; color:var(--gray); font-size:11px; text-align:center; 
 <body>
 <header>
   <div>
-    <h1>日志分析与修复</h1>
+    <div style="display:flex;align-items:center;gap:9px;">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#00a8e8"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4"/>
+        <path d="M14 2v6h6"/>
+        <circle cx="15.5" cy="17.5" r="3.5"/>
+        <line x1="18.2" y1="20.2" x2="21" y2="23"/>
+      </svg>
+      <h1>日志分析与修复</h1>
+    </div>
     <div class="subtitle">Home Assistant 系统日志分析与修复问题</div>
   </div>
   <button id="scanBtn" class="iconbtn" onclick="doScan()" title="立即扫描">

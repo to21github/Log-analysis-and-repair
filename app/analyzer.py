@@ -194,7 +194,8 @@ RULES = [
         "id": "supervisor_timeout",
         "title": "Supervisor API 超时",
         "pattern": r"(?:Timeout (?:on|connecting to) Supervisor|"
-                   r"Error on Supervisor API: Timeout|Timeout on /[\w/]+ request)",
+                   r"Error on Supervisor API: Timeout|Timeout on /[\w/]+ request|"
+                   r"Failed to to call /(?!store/)[\w/]+)",
         "severity": "warning",
         "action": None,
         "advice": "HA 与 Supervisor 通信超时，常见于系统繁忙（SD 卡 IO 高、"
@@ -242,7 +243,8 @@ RULES = [
         "id": "store_repo_error",
         "title": "插件商店仓库更新失败",
         "pattern": r"(?:Could not reload repository \w+ due to StoreGitError|"
-                   r"Wasn't able to update \S+ repo: Cmd\('git'\) failed)",
+                   r"Wasn't able to update \S+ repo: Cmd\('git'\) failed|"
+                   r"Failed to to call /store/\w+ - Cmd\('git'\) failed)",
         "severity": "warning",
         "action": None,
         "advice": "Supervisor 更新插件商店仓库（git 拉取）失败，多为网络原因"
