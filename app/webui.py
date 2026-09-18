@@ -56,9 +56,9 @@ h1 { font-size:22px; font-weight:600; color:var(--text); letter-spacing:.5px; }
 .panel .num.red { color:var(--red); } .panel .num.orange { color:var(--orange); }
 .panel .num.green { color:var(--green); } .panel .num.blue { color:var(--blue); }
 @media (max-width:560px) {
-  /* 移动端主标题与副标题均加粗 */
-  h1 { font-weight:600; }
-  .subtitle { font-weight:600; }
+  /* 移动端主标题与副标题加粗（700：部分 Android WebView 不渲染中文 600，改用标准粗体） */
+  h1 { font-weight:700; }
+  .subtitle { font-weight:700; }
   /* 移动端统计卡片压缩为单行，避免分 3 行显示 */
   .panel { display:flex; }
   .panel .cell { flex:1; min-width:0; padding:12px 2px; border-top:none; }
