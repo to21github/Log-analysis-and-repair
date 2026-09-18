@@ -18,6 +18,10 @@
 """
 
 import re
+from datetime import datetime
+
+# 问题存活窗口：最近 1 小时内未再出现的问题视为已解决，不再显示
+STALE_WINDOW = 3600
 
 # 兼容两种日志行格式：
 # Core:       2026-09-17 19:00:00.123 ERROR (MainThread) [logger.name] message
@@ -194,8 +198,10 @@ RULES = [
         "id": "supervisor_timeout",
         "title": "Supervisor API 超时",
         "pattern": r"(?:Timeout (?:on|connecting to) Supervisor|"
-                   r"Error on Supervisor API: Timeout|Timeout on /[\w/]+ request|"
-                   r"Failed to to call /(?!store/)[\w/]+)",
+                   r"Error on Supervisor API: Timeout|"
+                   r"Timeout on /addons/(?P<t1>[\w_-]+)/info request|"
+                   r"Failed to to call /addons/(?P<t2>[\w_-]+)|"
+                   r"Timeout on /[\w/-]+ request)",
         "severity": "warning",
         "action": None,
         "advice": "HA 与 Supervisor 通信超时，常见于系统繁忙（SD 卡 IO 高、"
@@ -420,9 +426,58 @@ def parse_lines(text, source):
     return lines
 
 
+def _parse_ts(raw):
+    """解析日志行首时间戳，返回 datetime；无法解析返回 None。
+
+    兼容 Core 四位年（2026-09-18 14:48:36.023）与
+    Supervisor / journal 转发的两位年（26-09-18 14:48:36）。
+    """
+    m = re.match(r"(\d{2,4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})", raw)
+    if not m:
+        return None
+    y, mo, d, h, mi, s = (int(x) for x in m.groups())
+    if y < 100:
+        y += 2000
+    try:
+        return datetime(y, mo, d, h, mi, s)
+    except ValueError:
+        return None
+
+
+def _group_info_issues(issues):
+    """提示类（无修复动作）问题按规则聚合，减少列表重复条目。
+
+    可修复问题保持独立（修复按 target 逐个执行）；
+    提示类问题合并为一条，targets 收集所有涉及对象。
+    """
+    out, by_id = [], {}
+    for i in issues:
+        if i.get("action"):
+            out.append(i)
+            continue
+        g = by_id.get(i["id"])
+        if g is None:
+            g = dict(i)
+            g["targets"] = []
+            g.pop("target", None)
+            g["count"] = 0
+            by_id[i["id"]] = g
+            out.append(g)
+        g["count"] += i["count"]
+        if i.get("target") and i["target"] not in g["targets"]:
+            g["targets"].append(i["target"])
+    return out
+
+
 def apply_rules(lines):
-    """按规则匹配日志行，聚合同类问题。"""
+    """按规则匹配日志行，聚合同类问题。
+
+    - 同规则同目标合并计数；
+    - STALE_WINDOW 秒内未再出现的问题不进入报告（已修复或已消失）；
+    - 无修复动作的提示类问题按规则聚合，涉及对象收进 targets。
+    """
     issues = {}
+    now = datetime.now()
     for ln in lines:
         for rule in RULES:
             m = re.search(rule["pattern"], ln["msg"], re.IGNORECASE)
@@ -447,14 +502,25 @@ def apply_rules(lines):
                     "action": rule.get("action"),
                     "switch": rule.get("switch"),
                     "source": ln["source"],
+                    "last_seen": None,
                 }
             item = issues[key]
             item["count"] += 1
             if len(item["samples"]) < 3:
                 item["samples"].append(ln["raw"])
+            ts = _parse_ts(ln["raw"])
+            if ts and (item["last_seen"] is None or ts > item["last_seen"]):
+                item["last_seen"] = ts
             ln["matched"] = True
             break  # 一行只归入最先命中的规则
-    return list(issues.values())
+    # 过滤已消失的问题：超过存活窗口未再出现，视为已解决，不再进入报告
+    result = []
+    for item in issues.values():
+        last_seen = item.pop("last_seen", None)
+        if last_seen and (now - last_seen).total_seconds() > STALE_WINDOW:
+            continue
+        result.append(item)
+    return _group_info_issues(result)
 
 
 def detect_tracebacks(text):

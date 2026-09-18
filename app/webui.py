@@ -174,7 +174,9 @@ function render(rep) {
     if (rr) badge = '<span class="badge ' + rr.status + '">' +
       (STATUS[rr.status] || rr.status) + '</span>';
     const cnt = i.count > 1 ? '<span class="count">出现 ' + i.count + ' 次</span>' : '';
-    const tgt = i.target ? '<span class="target">' + esc(i.target) + '</span>' : '';
+    const tgt = i.target ? '<span class="target">' + esc(i.target) + '</span>'
+      : (i.targets && i.targets.length
+        ? '<span class="target">' + esc(i.targets.join('、')) + '</span>' : '');
     // 可修复且尚未修复成功的问题显示「修复」按钮（手动模式核心交互）
     const btn = (i.action && !(rr && rr.status === 'ok'))
       ? '<button class="fixbtn" data-id="' + esc(i.id || '') + '" data-target="' +
