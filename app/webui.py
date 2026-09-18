@@ -25,7 +25,7 @@ body { font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
 header { display:flex; align-items:flex-start; justify-content:space-between;
          gap:12px; flex-wrap:wrap; margin-bottom:16px; }
 h1 { font-size:22px; font-weight:600; color:#fff; letter-spacing:.5px; }
-.subtitle { color:var(--gray); font-size:13px; margin-top:4px; }
+.subtitle { color:var(--gray); font-size:12px; margin-top:4px; }
 .iconbtn { width:46px; height:46px; border-radius:50%; background:var(--card);
            border:1px solid var(--line); cursor:pointer; display:flex;
            align-items:center; justify-content:center; flex-shrink:0; }
