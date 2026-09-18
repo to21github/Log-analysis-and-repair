@@ -20,8 +20,8 @@
 import re
 from datetime import datetime
 
-# 问题存活窗口：最近 1 小时内未再出现的问题视为已解决，不再显示
-STALE_WINDOW = 3600
+# 问题存活窗口：最近 30 分钟内未再出现的问题视为已解决，不再显示
+STALE_WINDOW = 1800
 
 # 兼容两种日志行格式：
 # Core:       2026-09-17 19:00:00.123 ERROR (MainThread) [logger.name] message

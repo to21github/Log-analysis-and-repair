@@ -46,13 +46,13 @@ h1 { font-size:22px; font-weight:600; color:var(--text); letter-spacing:.5px; }
 @keyframes r { from { transform:scaleX(-1) rotate(0deg); }
                to { transform:scaleX(-1) rotate(360deg); } }
 .panel { background:var(--card); border:1px solid var(--line); border-radius:14px;
-         display:grid; grid-template-columns:repeat(4,1fr); margin-bottom:20px;
+         display:grid; grid-template-columns:repeat(3,1fr); margin-bottom:20px;
          overflow:hidden; }
 .panel .cell { padding:16px 10px; display:flex; flex-direction:column;
                align-items:center; justify-content:center; text-align:center; }
 .panel .cell + .cell { border-left:1px solid var(--line); }
-.panel .num { font-size:34px; font-weight:600; color:#fff; margin-top:4px; }
-.panel .lab { font-size:12px; color:var(--gray); }
+.panel .num { font-size:36px; font-weight:600; color:#fff; margin-top:4px; }
+.panel .lab { font-size:14px; color:var(--gray); }
 .panel .num.red { color:var(--red); } .panel .num.orange { color:var(--orange); }
 .panel .num.green { color:var(--green); } .panel .num.blue { color:var(--blue); }
 @media (max-width:560px) {
@@ -63,8 +63,8 @@ h1 { font-size:22px; font-weight:600; color:var(--text); letter-spacing:.5px; }
   .panel { display:flex; }
   .panel .cell { flex:1; min-width:0; padding:12px 2px; border-top:none; }
   .panel .cell + .cell { border-left:1px solid var(--line); }
-  .panel .num { font-size:22px; margin-top:2px; }
-  .panel .lab { font-size:10px; }
+  .panel .num { font-size:24px; margin-top:2px; }
+  .panel .lab { font-size:12px; }
 }
 /* 移动端刷新按钮缩小至 40×40（SVG 保持 22×22） */
 @media (max-width:700px) {
