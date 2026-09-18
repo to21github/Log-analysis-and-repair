@@ -74,7 +74,9 @@ h2 { font-size:15px; margin:18px 0 10px; color:var(--text); }
 .issue { background:var(--card); border:1px solid var(--line); border-radius:12px;
          padding:14px; margin-bottom:10px; }
 .issue .head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.issue .head .t { font-weight:600; font-size:15px; color:var(--text); }
+.issue .head .t { font-weight:600; font-size:15px; color:var(--text);
+                  flex:1 1 auto; min-width:0; word-break:break-word;
+                  overflow-wrap:anywhere; }
 .badge { font-size:11px; padding:2px 8px; border-radius:10px; color:#fff; }
 .badge.error { background:var(--red); } .badge.warning { background:var(--orange); }
 .badge.info { background:var(--blue); }

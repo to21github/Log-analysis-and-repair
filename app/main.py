@@ -17,7 +17,7 @@ import webui
 
 OPTIONS_PATH = "/data/options.json"
 WEB_PORT = 8124  # 与 config.yaml 的 ingress_port 保持一致
-VERSION = "1.8.6"  # 与 config.yaml 的 version 保持一致
+VERSION = "1.8.7"  # 与 config.yaml 的 version 保持一致
 
 DEFAULTS = {
     "scan_interval": 1800,      # 自动扫描间隔（秒）
