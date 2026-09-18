@@ -159,7 +159,6 @@ function render(rep) {
     cell(m.issue_count ?? 0, '发现问题', ''),
     cell(m.repairable ?? 0, '可修复', 'blue'),
     cell(m.repaired ?? 0, '已修复', 'green'),
-    cell(s.error_lines ?? 0, '错误', 'red'),
   ];
   cardsEl.innerHTML = cells.join('');
 
