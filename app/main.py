@@ -17,10 +17,10 @@ import webui
 
 OPTIONS_PATH = "/data/options.json"
 WEB_PORT = 8124  # 与 config.yaml 的 ingress_port 保持一致
-VERSION = "2.1.1"  # 与 config.yaml 的 version 保持一致
+VERSION = "2.1.2"  # 与 config.yaml 的 version 保持一致
 
 DEFAULTS = {
-    "scan_interval": 1800,      # 自动扫描间隔（秒）
+    "scan_interval": 300,       # 自动扫描间隔（秒）：问题近实时呈现
     "log_lines": 3000,          # 每次抓取日志行数
     "auto_repair": False,       # 自动修复总开关（默认关闭：网页面板手动修复）
     "repair_cooldown": 3600,    # 同一问题修复冷却（秒）

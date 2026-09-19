@@ -527,6 +527,12 @@ def detect_tracebacks(text):
     i = 0
     while i < len(raw_lines):
         if raw_lines[i].startswith(TRACEBACK_HEAD):
+            # 堆栈块本身不带时间戳，向前找最近一条带时间戳的日志行确定发生时间
+            ts = None
+            for prev in reversed(raw_lines[max(0, i - 30):i]):
+                if LINE_RE.match(prev):
+                    ts = _parse_ts(prev)
+                    break
             block = []
             i += 1
             while i < len(raw_lines):
@@ -536,6 +542,9 @@ def detect_tracebacks(text):
                     break
                 block.append(line)
                 i += 1
+            # 已解决的异常：超过存活窗口未再出现，不再展示
+            if ts and (datetime.now() - ts).total_seconds() > STALE_WINDOW:
+                continue
             summary = ""
             for line in reversed(block):
                 stripped = line.strip()
@@ -577,34 +586,52 @@ def detect_tracebacks(text):
 
 
 def aggregate_uncategorized(lines, limit=15):
-    """把未被规则命中的 ERROR 行按 logger 聚合，作为待排查问题展示。"""
-    groups = {}
+    """把未被规则命中的 ERROR / WARNING 行按 logger 聚合，作为待排查问题展示。
+
+    未命中规则的警告同样实时展示；两类与规则命中问题同口径：
+    超过存活窗口未再出现即视为已解决，不再进入报告。
+    """
+    groups = {}  # (类别, logger) -> {count, samples, last_seen}
     for ln in lines:
-        if ln["matched"] or ln["level"] not in ("ERROR", "CRITICAL"):
+        if ln["matched"] or ln["level"] not in ("ERROR", "CRITICAL", "WARNING"):
             continue
+        klass = "warn" if ln["level"] == "WARNING" else "err"
         logger = ln["logger"] or "(未知来源)"
-        if logger not in groups:
-            groups[logger] = {"count": 0, "samples": []}
-        groups[logger]["count"] += 1
-        if len(groups[logger]["samples"]) < 2:
-            groups[logger]["samples"].append(ln["raw"])
-    ranked = sorted(groups.items(), key=lambda kv: -kv[1]["count"])[:limit]
-    return [
-        {
-            "id": "uncategorized",
-            "title": "未归类错误：%s" % logger,
-            "severity": "error",
-            "target": integration_from_logger(logger) or "",
-            "count": data["count"],
-            "samples": data["samples"],
-            "advice": "未被内置规则覆盖的错误，请根据样本日志自行排查，"
-                      "或将样本提交给对应集成的维护者。",
-            "action": None,
-            "switch": None,
-            "source": "core",
-        }
-        for logger, data in ranked
-    ]
+        g = groups.setdefault((klass, logger),
+                              {"count": 0, "samples": [], "last_seen": None})
+        g["count"] += 1
+        if len(g["samples"]) < 2:
+            g["samples"].append(ln["raw"])
+        ts = _parse_ts(ln["raw"])
+        if ts and (g["last_seen"] is None or ts > g["last_seen"]):
+            g["last_seen"] = ts
+    now = datetime.now()
+    cards = []
+    for klass, iid, sev, label in (
+            ("err", "uncategorized", "error", "未归类错误"),
+            ("warn", "uncategorized_warn", "warning", "未归类警告")):
+        fresh = [(lg, g) for (k, lg), g in groups.items()
+                 if k == klass
+                 # 已消失的问题：超过存活窗口未再出现，视为已解决
+                 and not (g["last_seen"]
+                          and (now - g["last_seen"]).total_seconds() > STALE_WINDOW)]
+        for logger, g in sorted(fresh, key=lambda kv: -kv[1]["count"])[:limit]:
+            cards.append({
+                "id": iid,
+                "title": "%s：%s" % (label, logger),
+                "severity": sev,
+                "target": integration_from_logger(logger) or "",
+                "count": g["count"],
+                "samples": g["samples"],
+                "advice": "未被内置规则覆盖的错误，请根据样本日志自行排查，"
+                          "或将样本提交给对应集成的维护者。" if klass == "err" else
+                          "未被内置规则覆盖的警告，多数不影响运行；"
+                          "频繁出现时请结合样本日志排查来源。",
+                "action": None,
+                "switch": None,
+                "source": "core",
+            })
+    return cards
 
 
 def check_environment(host, db_size, core_log_exists):
