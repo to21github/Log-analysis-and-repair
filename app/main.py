@@ -1,6 +1,6 @@
 """主入口：加载配置、启动 Web 界面（Ingress）与定时扫描主循环。
 
-流程：采集（日志 / 实体 / 插件 / 集成状态）→ 分析 → 修复 → 生成报告。
+流程：采集（Core 日志 / 环境信息）→ 分析 → 修复 → 生成报告。
 """
 
 import json
@@ -17,7 +17,7 @@ import webui
 
 OPTIONS_PATH = "/data/options.json"
 WEB_PORT = 8124  # 与 config.yaml 的 ingress_port 保持一致
-VERSION = "2.0.5"  # 与 config.yaml 的 version 保持一致
+VERSION = "2.1.0"  # 与 config.yaml 的 version 保持一致
 
 DEFAULTS = {
     "scan_interval": 1800,      # 自动扫描间隔（秒）
@@ -112,17 +112,16 @@ class App:
             started = time.time()
             print("[日志分析] 开始扫描…")
 
-            # 1. 采集（纯日志分析：仅抓取 Core / Supervisor 日志与环境信息）
+            # 1. 采集（纯 Core 日志分析：只抓取 Core 日志与环境信息）
             core_text, core_src = self.col.core_logs()
-            sup_text, sup_src = self.col.supervisor_logs()
             host = self.col.host_info()
             db_size = self.col.db_size()
             log_exists = self.col.core_log_exists()
-            print("[日志分析] 采集完成：Core %s 行 / Supervisor %s 行"
-                  % (len(core_text.splitlines()), len(sup_text.splitlines())))
+            print("[日志分析] 采集完成：Core %s 行（来源：%s）"
+                  % (len(core_text.splitlines()), core_src))
 
             # 2. 分析
-            result = analyzer.analyze(core_text, sup_text,
+            result = analyzer.analyze(core_text,
                                       host=host, db_size=db_size,
                                       core_log_exists=log_exists)
             issues = result["issues"]
@@ -134,7 +133,7 @@ class App:
             repairs = self.rep.repair_issues(issues) if self.cfg.get("auto_repair") else []
 
             # 4. 报告
-            report = self.rpt.build(result, repairs, core_src, sup_src,
+            report = self.rpt.build(result, repairs, core_src,
                                     time.time() - started)
             self.rpt.save(report)
             self.state["last_report"] = report

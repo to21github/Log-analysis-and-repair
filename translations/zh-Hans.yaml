@@ -4,7 +4,7 @@ configuration:
     description: 每隔多久自动抓取并分析一次日志，最小 60 秒
   log_lines:
     name: 日志行数
-    description: 每次从 Core / Supervisor 日志末尾抓取的最大行数
+    description: 每次从 Core 日志末尾抓取的最大行数
   auto_repair:
     name: 自动修复
     description: 默认关闭（手动模式）。开启后扫描发现可修复问题即自动执行；关闭时请在网页面板中逐项点击「修复」按钮

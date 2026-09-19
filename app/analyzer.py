@@ -1,7 +1,7 @@
 """日志分析引擎。
 
-解析 Core / Supervisor 日志行，按内置规则识别已知问题，并结合
-实体状态、集成配置项（Config Entry）状态、插件运行状态做综合检测。
+解析 Core 日志行，按内置规则识别已知问题，并结合环境信息
+（磁盘 / 内存 / 数据库大小）做综合检测。
 
 每个问题的结构：
 {
@@ -383,9 +383,6 @@ RULES = [
     },
 ]
 
-# 集成配置项的异常状态
-BAD_ENTRY_STATES = ("setup_error", "setup_retry", "migration_error", "failed", "not_started")
-
 
 def integration_from_logger(logger):
     """从 logger 名称推断集成域名，例如 custom_components.hacs -> hacs。"""
@@ -610,121 +607,6 @@ def aggregate_uncategorized(lines, limit=15):
     ]
 
 
-def check_addons(addons):
-    """结合 Supervisor API 的插件状态识别崩溃 / 异常停止。"""
-    issues = []
-    for a in addons or []:
-        slug = a.get("slug", "")
-        name = a.get("name") or slug
-        state = a.get("state")
-        if state == "error":
-            issues.append({
-                "id": "addon_crash",
-                "title": "插件崩溃：%s" % name,
-                "severity": "error",
-                "target": slug,
-                "count": 1,
-                "samples": ["Supervisor 报告插件 %s 状态为 error（异常退出）" % slug],
-                "advice": "插件异常退出。将自动尝试重启；若反复崩溃，"
-                          "请查看该插件自身日志排查原因。",
-                "action": "restart_addon",
-                "switch": "restart_crashed_addons",
-                "source": "supervisor",
-            })
-        elif a.get("boot") == "auto" and state == "stopped":
-            issues.append({
-                "id": "addon_stopped",
-                "title": "插件未运行：%s" % name,
-                "severity": "warning",
-                "target": slug,
-                "count": 1,
-                "samples": ["插件 %s 设置了开机自启但当前处于停止状态" % slug],
-                "advice": "该插件设置为自动启动但当前是停止状态，"
-                          "可能被手动停止或启动失败，请确认是否符合预期。",
-                "action": None,
-                "switch": None,
-                "source": "supervisor",
-            })
-    return issues
-
-
-def check_entities(entities):
-    """统计不可用（unavailable）/ 未知（unknown）实体，按域分组。"""
-    total = len(entities or [])
-    unavail_domains = {}
-    unavail_examples = []
-    unknown_count = 0
-    for ent in entities or []:
-        eid = ent.get("entity_id") or ""
-        if not eid:
-            continue
-        domain = eid.split(".", 1)[0]
-        state = ent.get("state")
-        if state == "unavailable":
-            unavail_domains[domain] = unavail_domains.get(domain, 0) + 1
-            if len(unavail_examples) < 12:
-                unavail_examples.append(eid)
-        elif state == "unknown":
-            unknown_count += 1
-
-    issues = []
-    if unavail_domains:
-        unavail_total = sum(unavail_domains.values())
-        top_domains = sorted(unavail_domains.items(), key=lambda kv: -kv[1])
-        issues.append({
-            "id": "entity_unavailable",
-            "title": "实体不可用（%d 个）" % unavail_total,
-            "severity": "warning",
-            "target": "、".join("%s(%d)" % d for d in top_domains[:5]),
-            "count": unavail_total,
-            "domains": dict(unavail_domains),
-            "samples": unavail_examples,
-            "advice": "实体显示不可用通常表示设备离线、网关断连或集成异常。"
-                      "电池设备休眠时也属正常现象。可尝试重载对应集成恢复。",
-            "action": "reload_unavailable_entries",
-            "switch": "reload_integrations",
-            "source": "core_api",
-        })
-    if unknown_count:
-        issues.append({
-            "id": "entity_unknown",
-            "title": "实体状态未知（%d 个）" % unknown_count,
-            "severity": "info",
-            "target": "",
-            "count": unknown_count,
-            "samples": [],
-            "advice": "unknown 多为设备自上次重启后尚未上报过数据，"
-                      "低功耗传感器尤其常见，一般无需处理。",
-            "action": None,
-            "switch": None,
-            "source": "core_api",
-        })
-    return issues, total, unknown_count
-
-
-def check_entries(entries):
-    """识别处于异常状态的集成配置项（初始化失败 / 迁移失败等）。"""
-    issues = []
-    for e in entries or []:
-        if e.get("state") in BAD_ENTRY_STATES:
-            domain = e.get("domain", "")
-            issues.append({
-                "id": "entry_setup_error",
-                "title": "集成未能加载：%s" % (e.get("title") or domain),
-                "severity": "error",
-                "target": domain,
-                "count": 1,
-                "samples": ["配置项状态：%s（domain=%s, source=%s）"
-                            % (e.get("state"), domain, e.get("source", ""))],
-                "advice": "该集成配置项未能成功加载（状态 %s），"
-                          "请检查其账号、网络与配置后重试。" % e.get("state"),
-                "action": "reload_entry",
-                "switch": "reload_integrations",
-                "source": "core_api",
-            })
-    return issues
-
-
 def check_environment(host, db_size, core_log_exists):
     """环境健康检查：磁盘 / 内存 / 历史数据库大小 / Core 日志是否落盘。
 
@@ -805,7 +687,7 @@ def check_environment(host, db_size, core_log_exists):
             "severity": "warning",
             "target": "recorder",
             "count": 1,
-            "samples": ["/config/home-assistant_v2.db"],
+            "samples": ["/homeassistant_config/home-assistant_v2.db"],
             "advice": "数据库过大会拖慢历史查询与重启速度（SD 卡上尤其明显）。"
                       "将自动执行 repack 压缩清理；建议同时缩短 recorder "
                       "purge_keep_days、排除高频传感器记录。",
@@ -822,10 +704,12 @@ def check_environment(host, db_size, core_log_exists):
             "severity": "info",
             "target": "logger",
             "count": 1,
-            "samples": ["/config/home-assistant.log 不存在"],
-            "advice": "HA 默认不生成日志文件（仅输出到系统日志）。在 "
-                      "configuration.yaml 中添加「logger:\\n  default: info」并重启后，"
-                      "本插件可分析到更完整的历史日志。",
+            "samples": ["未找到 Core 日志文件（已探测 /homeassistant_config、"
+                        "/homeassistant、/config 下的 home-assistant.log）"],
+            "advice": "HA 默认不生成日志文件（仅输出到系统日志）。"
+                      "在 configuration.yaml 添加「logger:\\n  default: info」，"
+                      "并在终端执行「ha core options --duplicate-log-file=true」"
+                      "后重启 Core，本插件即可直接读取完整日志文件。",
             "action": None,
             "switch": None,
             "source": "core",
@@ -833,16 +717,13 @@ def check_environment(host, db_size, core_log_exists):
     return issues, env
 
 
-def analyze(core_text, supervisor_text,
-            host=None, db_size=0, core_log_exists=True):
-    """综合分析入口，返回问题列表与统计信息（纯日志 + 环境数据）。"""
+def analyze(core_text, host=None, db_size=0, core_log_exists=True):
+    """综合分析入口，返回问题列表与统计信息（Core 日志 + 环境数据）。"""
     core_lines = parse_lines(core_text, "core")
-    sup_lines = parse_lines(supervisor_text, "supervisor")
-    lines = core_lines + sup_lines
 
-    issues = apply_rules(lines)
+    issues = apply_rules(core_lines)
     issues.extend(detect_tracebacks(core_text))
-    issues.extend(aggregate_uncategorized(lines))
+    issues.extend(aggregate_uncategorized(core_lines))
 
     env_issues, env = check_environment(host or {}, db_size, core_log_exists)
     issues.extend(env_issues)
@@ -853,9 +734,8 @@ def analyze(core_text, supervisor_text,
 
     stats = {
         "core_lines": len(core_lines),
-        "supervisor_lines": len(sup_lines),
-        "error_lines": sum(1 for l in lines if l["level"] in ("ERROR", "CRITICAL")),
-        "warning_lines": sum(1 for l in lines if l["level"] == "WARNING"),
+        "error_lines": sum(1 for l in core_lines if l["level"] in ("ERROR", "CRITICAL")),
+        "warning_lines": sum(1 for l in core_lines if l["level"] == "WARNING"),
         "tracebacks": sum(1 for i in issues if i["id"] == "traceback"),
     }
     stats.update(env)

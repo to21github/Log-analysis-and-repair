@@ -33,7 +33,7 @@ class Reporter:
         os.makedirs(REPORT_DIR, exist_ok=True)
 
     # ---------------- 构建 ----------------
-    def build(self, result, repairs, core_source, supervisor_source, duration):
+    def build(self, result, repairs, core_source, duration):
         """组装完整报告 dict，并把修复结果回填到对应问题上。"""
         issues = result["issues"]
         # 用 (id, target) 匹配修复结果（title 含动态数字，不适合做键）
@@ -58,7 +58,7 @@ class Reporter:
             "version": "1.0.0",
             "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
             "duration_sec": round(duration, 2),
-            "sources": {"core": core_source, "supervisor": supervisor_source},
+            "sources": {"core": core_source},
             "stats": result["stats"],
             "summary": {
                 "issue_count": len(issues),
@@ -115,10 +115,8 @@ class Reporter:
         lines.append("# Home Assistant 日志分析报告\n")
         lines.append("- 生成时间：%s" % report["generated_at"])
         lines.append("- 分析耗时：%.1f 秒" % report["duration_sec"])
-        lines.append("- 日志来源：Core（%s）/ Supervisor（%s）"
-                     % (report["sources"]["core"], report["sources"]["supervisor"]))
-        lines.append("- 扫描行数：Core %s 行 / Supervisor %s 行\n"
-                     % (stats["core_lines"], stats["supervisor_lines"]))
+        lines.append("- 日志来源：Core（%s）" % report["sources"]["core"])
+        lines.append("- 扫描行数：Core %s 行\n" % stats["core_lines"])
 
         lines.append("## 摘要\n")
         lines.append("| 指标 | 数值 |")
@@ -127,9 +125,6 @@ class Reporter:
         lines.append("| 本次已修复 | %d 项（失败 %d 项）|" % (summary["repaired"], summary["repair_failed"]))
         lines.append("| 错误 / 警告行 | %d / %d |" % (stats["error_lines"], stats["warning_lines"]))
         lines.append("| Python 异常堆栈 | %d 处 |" % stats["tracebacks"])
-        lines.append("| 实体总数 | %d（unknown %d）|" % (stats["entities_total"], stats["entities_unknown"]))
-        lines.append("| 插件总数 | %d（异常 %d）|" % (stats["addons_total"], stats["addons_error"]))
-        lines.append("| 集成加载失败 | %d 项 |" % stats["entries_error"])
         GB = 1024 ** 3
         if stats.get("disk_free_bytes") is not None:
             lines.append("| 磁盘剩余 | %.1f / %.1f GB |"

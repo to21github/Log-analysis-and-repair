@@ -1,10 +1,8 @@
 """日志与状态采集模块。
 
-从 Supervisor API 与 Home Assistant 配置目录抓取：
+从 Home Assistant 配置目录与 Supervisor API 抓取：
 - Core 日志（含 custom_components 的输出）
-- Supervisor 日志
-- 插件运行状态（用于识别崩溃）
-- 实体状态与集成配置项（Config Entry）状态
+- 主机健康信息与历史数据库大小（环境检查用）
 """
 
 import json
@@ -15,8 +13,21 @@ import urllib.request
 
 SUPERVISOR_URL = os.environ.get("SUPERVISOR_URL", "http://supervisor")
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
-CORE_LOG_FILE = "/config/home-assistant.log"
-CORE_DB_FILE = "/config/home-assistant_v2.db"
+
+# Core 配置目录在插件容器内的挂载点随 Supervisor 版本而不同，按候选顺序探测：
+# - /homeassistant_config：新版 Supervisor（map 目标默认为 /<type-name>）
+# - /homeassistant：旧版 Supervisor 的挂载点
+# - /config：本地调试 / 旧式 map: config
+CORE_LOG_CANDIDATES = (
+    "/homeassistant_config/home-assistant.log",
+    "/homeassistant/home-assistant.log",
+    "/config/home-assistant.log",
+)
+CORE_DB_CANDIDATES = (
+    "/homeassistant_config/home-assistant_v2.db",
+    "/homeassistant/home-assistant_v2.db",
+    "/config/home-assistant_v2.db",
+)
 # 日志文件过大时只读尾部，避免占用树莓派过多内存
 CORE_LOG_MAX_BYTES = 20 * 1024 * 1024
 # 采集类请求的超时（秒）：Supervisor 在本机环回，正常 <1s；
@@ -66,6 +77,14 @@ def unwrap_logs(text):
     return text
 
 
+def first_existing(paths):
+    """返回候选路径中第一个存在的文件路径；都不存在返回空串。"""
+    for p in paths:
+        if p and os.path.isfile(p):
+            return p
+    return ""
+
+
 def tail(path, lines):
     """读取文件末尾指定行数（大文件只读最后 20MB）。"""
     if not path or not os.path.isfile(path):
@@ -91,32 +110,17 @@ class Collector:
 
     # ---------------- 日志 ----------------
     def core_logs(self):
-        """Core 日志：优先直接读文件（信息最全），失败时回退 Supervisor API。"""
-        text = tail(CORE_LOG_FILE, self.log_lines)
+        """Core 日志：优先直接读日志文件（信息最全），失败时回退 Supervisor API。"""
+        path = first_existing(CORE_LOG_CANDIDATES)
+        text = tail(path, self.log_lines)
         if text:
-            return text, "文件 /config/home-assistant.log"
+            return text, "文件 %s" % path
         code, body = request("/core/logs?lines=%d" % self.log_lines, timeout=FETCH_TIMEOUT)
         if code == 200:
             return unwrap_logs(body), "Supervisor API /core/logs"
         return "", "无（HTTP %s）" % code
 
-    def supervisor_logs(self):
-        code, body = request("/supervisor/logs?lines=%d" % self.log_lines, timeout=FETCH_TIMEOUT)
-        if code == 200:
-            return unwrap_logs(body), "Supervisor API /supervisor/logs"
-        return "", "无（HTTP %s）" % code
-
     # ---------------- 状态 ----------------
-    def addon_states(self):
-        """所有插件的状态列表（state: started / stopped / error）。"""
-        code, body = request("/addons", timeout=FETCH_TIMEOUT)
-        if code != 200:
-            return []
-        try:
-            return json.loads(body).get("data", {}).get("addons", []) or []
-        except ValueError:
-            return []
-
     def host_info(self):
         """主机健康信息（磁盘 / 内存），供环境检查。"""
         code, body = request("/host/info", timeout=FETCH_TIMEOUT)
@@ -129,14 +133,15 @@ class Collector:
 
     @staticmethod
     def core_log_exists():
-        """Core 日志文件是否存在（未配置 logger 集成时 HA 不落盘日志文件）。"""
-        return os.path.isfile(CORE_LOG_FILE)
+        """Core 日志文件是否存在（未开启日志落盘时 HA 不生成该文件）。"""
+        return bool(first_existing(CORE_LOG_CANDIDATES))
 
     @staticmethod
     def db_size():
         """历史数据库（SQLite）文件大小，单位字节；不存在返回 0。"""
+        path = first_existing(CORE_DB_CANDIDATES)
         try:
-            return os.path.getsize(CORE_DB_FILE)
+            return os.path.getsize(path) if path else 0
         except OSError:
             return 0
 
@@ -149,9 +154,6 @@ class Collector:
             return json.loads(body)
         except ValueError:
             return None
-
-    def entity_states(self):
-        return self.ha_api("/states") or []
 
     def config_entries(self):
         return self.ha_api("/config/config_entries/entry/list") or []
