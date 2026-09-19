@@ -9,7 +9,7 @@ import json
 import os
 from datetime import datetime
 
-from repairer import HISTORY_PATH, pick_base_dir
+from repairer import pick_base_dir
 
 BASE_DIR = pick_base_dir()
 REPORT_DIR = os.path.join(BASE_DIR, "reports")
@@ -179,13 +179,3 @@ def read_latest():
             return json.load(fh)
     except (OSError, ValueError):
         return None
-
-
-def read_history():
-    """读取修复历史事件。"""
-    try:
-        with open(HISTORY_PATH, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-        return data.get("events", [])
-    except (OSError, ValueError):
-        return []
