@@ -805,7 +805,7 @@ def check_environment(host, db_size, core_log_exists):
             "severity": "warning",
             "target": "recorder",
             "count": 1,
-            "samples": ["/homeassistant/home-assistant_v2.db"],
+            "samples": ["/config/home-assistant_v2.db"],
             "advice": "数据库过大会拖慢历史查询与重启速度（SD 卡上尤其明显）。"
                       "将自动执行 repack 压缩清理；建议同时缩短 recorder "
                       "purge_keep_days、排除高频传感器记录。",
@@ -822,7 +822,7 @@ def check_environment(host, db_size, core_log_exists):
             "severity": "info",
             "target": "logger",
             "count": 1,
-            "samples": ["/homeassistant/home-assistant.log 不存在"],
+            "samples": ["/config/home-assistant.log 不存在"],
             "advice": "HA 默认不生成日志文件（仅输出到系统日志）。在 "
                       "configuration.yaml 中添加「logger:\\n  default: info」并重启后，"
                       "本插件可分析到更完整的历史日志。",
