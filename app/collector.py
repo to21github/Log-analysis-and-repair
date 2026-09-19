@@ -132,6 +132,27 @@ class Collector:
             return {}
 
     @staticmethod
+    def disk_stats():
+        """磁盘占用（字节）：statvfs 直读数据盘。
+
+        Supervisor /host/info 的磁盘数值单位在不同版本不一致（字节 / MiB /
+        GiB），按字节解释会把正常容量算成几 KB，误报「磁盘空间严重不足」；
+        statvfs 恒为字节，且 /data 与 HA 配置、数据库同在数据分区，
+        结果即用户关心的那块盘。
+        """
+        for p in ("/data", "/homeassistant_config", "/homeassistant", "/config", "/"):
+            try:
+                st = os.statvfs(p)
+            except OSError:
+                continue
+            total = st.f_frsize * st.f_blocks
+            if total > 0:
+                free = st.f_frsize * st.f_bavail
+                return {"disk_total": total, "disk_used": total - free,
+                        "disk_free": free}
+        return {}
+
+    @staticmethod
     def core_log_exists():
         """Core 日志文件是否存在（未开启日志落盘时 HA 不生成该文件）。"""
         return bool(first_existing(CORE_LOG_CANDIDATES))

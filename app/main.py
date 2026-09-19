@@ -17,7 +17,7 @@ import webui
 
 OPTIONS_PATH = "/data/options.json"
 WEB_PORT = 8124  # 与 config.yaml 的 ingress_port 保持一致
-VERSION = "2.1.0"  # 与 config.yaml 的 version 保持一致
+VERSION = "2.1.1"  # 与 config.yaml 的 version 保持一致
 
 DEFAULTS = {
     "scan_interval": 1800,      # 自动扫描间隔（秒）
@@ -115,6 +115,11 @@ class App:
             # 1. 采集（纯 Core 日志分析：只抓取 Core 日志与环境信息）
             core_text, core_src = self.col.core_logs()
             host = self.col.host_info()
+            # 磁盘占用改用 statvfs 直读：Supervisor API 的磁盘单位随版本不一致
+            # （字节 / MiB / GiB），按字节解释会误报「磁盘空间严重不足」
+            for k in ("disk_total", "disk_used", "disk_free"):
+                host.pop(k, None)
+            host.update(self.col.disk_stats())
             db_size = self.col.db_size()
             log_exists = self.col.core_log_exists()
             print("[日志分析] 采集完成：Core %s 行（来源：%s）"
