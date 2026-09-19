@@ -15,8 +15,8 @@ import urllib.request
 
 SUPERVISOR_URL = os.environ.get("SUPERVISOR_URL", "http://supervisor")
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
-CORE_LOG_FILE = "/homeassistant/home-assistant.log"
-CORE_DB_FILE = "/homeassistant/home-assistant_v2.db"
+CORE_LOG_FILE = "/config/home-assistant.log"
+CORE_DB_FILE = "/config/home-assistant_v2.db"
 # 日志文件过大时只读尾部，避免占用树莓派过多内存
 CORE_LOG_MAX_BYTES = 20 * 1024 * 1024
 # 采集类请求的超时（秒）：Supervisor 在本机环回，正常 <1s；
@@ -94,7 +94,7 @@ class Collector:
         """Core 日志：优先直接读文件（信息最全），失败时回退 Supervisor API。"""
         text = tail(CORE_LOG_FILE, self.log_lines)
         if text:
-            return text, "文件 /homeassistant/home-assistant.log"
+            return text, "文件 /config/home-assistant.log"
         code, body = request("/core/logs?lines=%d" % self.log_lines, timeout=FETCH_TIMEOUT)
         if code == 200:
             return unwrap_logs(body), "Supervisor API /core/logs"
