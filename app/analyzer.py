@@ -20,8 +20,8 @@
 import re
 from datetime import datetime
 
-# 问题存活窗口：最近 30 分钟内未再出现的问题视为已解决，不再显示
-STALE_WINDOW = 1800
+# 问题存活窗口：由主流程按扫描间隔动态传入（间隔 + 60s 缓冲）。
+# 窗口内未再出现的问题视为已停止，立即不再显示；持续出现则持续显示。
 
 # 兼容两种日志行格式：
 # Core:       2026-09-17 19:00:00.123 ERROR (MainThread) [logger.name] message
@@ -470,11 +470,10 @@ def apply_rules(lines):
     """按规则匹配日志行，聚合同类问题。
 
     - 同规则同目标合并计数；
-    - STALE_WINDOW 秒内未再出现的问题不进入报告（已修复或已消失）；
     - 无修复动作的提示类问题按规则聚合，涉及对象收进 targets。
+    （存活过滤已在 analyze 中按窗口完成，此处只做匹配。）
     """
     issues = {}
-    now = datetime.now()
     for ln in lines:
         for rule in RULES:
             m = re.search(rule["pattern"], ln["msg"], re.IGNORECASE)
@@ -499,29 +498,21 @@ def apply_rules(lines):
                     "action": rule.get("action"),
                     "switch": rule.get("switch"),
                     "source": ln["source"],
-                    "last_seen": None,
                 }
             item = issues[key]
             item["count"] += 1
             if len(item["samples"]) < 3:
                 item["samples"].append(ln["raw"])
-            ts = _parse_ts(ln["raw"])
-            if ts and (item["last_seen"] is None or ts > item["last_seen"]):
-                item["last_seen"] = ts
             ln["matched"] = True
             break  # 一行只归入最先命中的规则
-    # 过滤已消失的问题：超过存活窗口未再出现，视为已解决，不再进入报告
-    result = []
-    for item in issues.values():
-        last_seen = item.pop("last_seen", None)
-        if last_seen and (now - last_seen).total_seconds() > STALE_WINDOW:
-            continue
-        result.append(item)
-    return _group_info_issues(result)
+    return _group_info_issues(list(issues.values()))
 
 
-def detect_tracebacks(text):
-    """统计 Python 异常堆栈，提取末行异常摘要作为样本。"""
+def detect_tracebacks(text, window):
+    """统计 Python 异常堆栈，提取末行异常摘要作为样本。
+
+    窗口外（已停止出现）的堆栈不再展示。
+    """
     issues = []
     raw_lines = (text or "").splitlines()
     i = 0
@@ -542,8 +533,8 @@ def detect_tracebacks(text):
                     break
                 block.append(line)
                 i += 1
-            # 已解决的异常：超过存活窗口未再出现，不再展示
-            if ts and (datetime.now() - ts).total_seconds() > STALE_WINDOW:
+            # 已停止出现的异常：超出存活窗口，不再展示
+            if ts and (datetime.now() - ts).total_seconds() > window:
                 continue
             summary = ""
             for line in reversed(block):
@@ -588,34 +579,25 @@ def detect_tracebacks(text):
 def aggregate_uncategorized(lines, limit=15):
     """把未被规则命中的 ERROR / WARNING 行按 logger 聚合，作为待排查问题展示。
 
-    未命中规则的警告同样实时展示；两类与规则命中问题同口径：
-    超过存活窗口未再出现即视为已解决，不再进入报告。
+    未命中规则的警告同样实时展示（存活过滤已在 analyze 中按窗口完成）。
     """
-    groups = {}  # (类别, logger) -> {count, samples, last_seen}
+    groups = {}  # (类别, logger) -> {count, samples}
     for ln in lines:
         if ln["matched"] or ln["level"] not in ("ERROR", "CRITICAL", "WARNING"):
             continue
         klass = "warn" if ln["level"] == "WARNING" else "err"
         logger = ln["logger"] or "(未知来源)"
-        g = groups.setdefault((klass, logger),
-                              {"count": 0, "samples": [], "last_seen": None})
+        g = groups.setdefault((klass, logger), {"count": 0, "samples": []})
         g["count"] += 1
         if len(g["samples"]) < 2:
             g["samples"].append(ln["raw"])
-        ts = _parse_ts(ln["raw"])
-        if ts and (g["last_seen"] is None or ts > g["last_seen"]):
-            g["last_seen"] = ts
-    now = datetime.now()
     cards = []
     for klass, iid, sev, label in (
             ("err", "uncategorized", "error", "未归类错误"),
             ("warn", "uncategorized_warn", "warning", "未归类警告")):
-        fresh = [(lg, g) for (k, lg), g in groups.items()
-                 if k == klass
-                 # 已消失的问题：超过存活窗口未再出现，视为已解决
-                 and not (g["last_seen"]
-                          and (now - g["last_seen"]).total_seconds() > STALE_WINDOW)]
-        for logger, g in sorted(fresh, key=lambda kv: -kv[1]["count"])[:limit]:
+        for logger, g in sorted(
+                ((lg, g) for (k, lg), g in groups.items() if k == klass),
+                key=lambda kv: -kv[1]["count"])[:limit]:
             cards.append({
                 "id": iid,
                 "title": "%s：%s" % (label, logger),
@@ -744,12 +726,25 @@ def check_environment(host, db_size, core_log_exists):
     return issues, env
 
 
-def analyze(core_text, host=None, db_size=0, core_log_exists=True):
-    """综合分析入口，返回问题列表与统计信息（Core 日志 + 环境数据）。"""
+def analyze(core_text, host=None, db_size=0, core_log_exists=True, window=360):
+    """综合分析入口，返回问题列表与统计信息（Core 日志 + 环境数据）。
+
+    window：问题存活窗口（秒）＝扫描间隔 + 缓冲。窗口外的日志行视为
+    已停止出现，立即不进入报告；持续出现的问题持续显示。
+    """
     core_lines = parse_lines(core_text, "core")
+    # 存活过滤：只保留窗口内出现的行，停止出现的问题立即消失
+    now = datetime.now()
+    fresh = []
+    for ln in core_lines:
+        ts = _parse_ts(ln["raw"])
+        if ts and (now - ts).total_seconds() > window:
+            continue
+        fresh.append(ln)
+    core_lines = fresh
 
     issues = apply_rules(core_lines)
-    issues.extend(detect_tracebacks(core_text))
+    issues.extend(detect_tracebacks(core_text, window))
     issues.extend(aggregate_uncategorized(core_lines))
 
     env_issues, env = check_environment(host or {}, db_size, core_log_exists)

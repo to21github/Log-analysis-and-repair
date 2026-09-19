@@ -17,7 +17,7 @@ import webui
 
 OPTIONS_PATH = "/data/options.json"
 WEB_PORT = 8124  # 与 config.yaml 的 ingress_port 保持一致
-VERSION = "2.1.2"  # 与 config.yaml 的 version 保持一致
+VERSION = "2.1.3"  # 与 config.yaml 的 version 保持一致
 
 DEFAULTS = {
     "scan_interval": 300,       # 自动扫描间隔（秒）：问题近实时呈现
@@ -125,10 +125,13 @@ class App:
             print("[日志分析] 采集完成：Core %s 行（来源：%s）"
                   % (len(core_text.splitlines()), core_src))
 
-            # 2. 分析
+            # 2. 分析（存活窗口 = 扫描间隔 + 60s 缓冲：
+            #    窗口内还在出现的问题显示，停止出现的下一次扫描即消失）
+            window = int(self.cfg.get("scan_interval", 300)) + 60
             result = analyzer.analyze(core_text,
                                       host=host, db_size=db_size,
-                                      core_log_exists=log_exists)
+                                      core_log_exists=log_exists,
+                                      window=window)
             issues = result["issues"]
             repairable = sum(1 for i in issues if i.get("action"))
             print("[日志分析] 发现 %d 类问题（可修复 %d 项）"
@@ -166,7 +169,7 @@ class App:
             # 支持运行中修改配置：每次循环重新读取 options
             self.cfg = load_options()
             self.col.log_lines = int(self.cfg.get("log_lines", 3000))
-            interval = int(self.cfg.get("scan_interval", 1800))
+            interval = int(self.cfg.get("scan_interval", 300))
             # 从本轮扫描开始时刻起算间隔并扣除扫描耗时，保证实际周期 = scan_interval
             wait = interval - (time.time() - cycle_started)
             if wait < 0:
