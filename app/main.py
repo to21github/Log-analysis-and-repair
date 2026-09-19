@@ -17,14 +17,15 @@ import webui
 
 OPTIONS_PATH = "/data/options.json"
 WEB_PORT = 8124  # 与 config.yaml 的 ingress_port 保持一致
-VERSION = "2.1.3"  # 与 config.yaml 的 version 保持一致
+VERSION = "2.2.0"  # 与 config.yaml 的 version 保持一致
 
 DEFAULTS = {
     "scan_interval": 300,       # 自动扫描间隔（秒）：问题近实时呈现
     "log_lines": 3000,          # 每次抓取日志行数
     "auto_repair": False,       # 自动修复总开关（默认关闭：网页面板手动修复）
     "repair_cooldown": 3600,    # 同一问题修复冷却（秒）
-    "restart_crashed_addons": True,
+    # restart_crashed_addons 仅为兼容旧配置保留（schema 中已标记废弃），
+    # 重启插件动作随实体/插件状态分析一并移除，不再读取
     "reload_integrations": True,
     "repair_mqtt": True,
     "purge_recorder": True,

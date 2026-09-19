@@ -196,7 +196,3 @@ class Collector:
             method="POST",
             body={},
         )
-
-    def restart_addon(self, slug):
-        """重启指定插件。"""
-        return request("/addons/%s/restart" % slug, method="POST", body={})

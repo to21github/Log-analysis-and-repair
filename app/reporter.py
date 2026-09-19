@@ -9,7 +9,23 @@ import json
 import os
 from datetime import datetime
 
-from repairer import pick_base_dir
+
+def pick_base_dir():
+    """选择报告持久化根目录。
+
+    HA 容器内 /addon_config 由插件系统自动挂载，存在即直接使用；
+    其余环境（如本地调试）回退到 /tmp 下的独立目录。
+    """
+    for d in ("/addon_config", "/data"):
+        if os.path.isdir(d):
+            return d
+    fallback = "/tmp/log_analyzer"
+    try:
+        os.makedirs(fallback, exist_ok=True)
+    except OSError:
+        pass
+    return fallback
+
 
 BASE_DIR = pick_base_dir()
 REPORT_DIR = os.path.join(BASE_DIR, "reports")
@@ -21,14 +37,12 @@ STATUS_NAMES = {
     "ok": "已修复",
     "fail": "修复失败",
     "cooldown": "冷却中",
-    "skipped": "未执行",
     "disabled": "自动修复未开启",
 }
 
 
 class Reporter:
     def __init__(self, options):
-        self.cfg_options = options
         self.keep = int(options.get("keep_reports", 10))
         os.makedirs(REPORT_DIR, exist_ok=True)
 
@@ -48,7 +62,6 @@ class Reporter:
                 issue["repair_result"] = {"status": rep["status"], "detail": rep["detail"]}
             else:
                 # 有修复动作但本次未执行：总开关或对应开关未开启
-                switch = issue.get("switch")
                 issue["repair_result"] = {"status": "disabled", "detail": ""}
 
         repaired = sum(1 for r in (repairs or []) if r["status"] == "ok")

@@ -1,48 +1,25 @@
 """问题修复模块。
 
 对可修复问题执行动作：
-- reload_mqtt                重载 MQTT 集成，恢复与代理的连接
-- reload_entry               重载指定集成配置项
-- reload_unavailable_entries 重载不可用实体集中的集成
-- restart_addon              重启崩溃插件（本插件自身除外）
-- purge_recorder             清理历史数据库旧数据
+- reload_mqtt    重载 MQTT 集成，恢复与代理的连接
+- reload_entry   重载指定集成配置项
+- purge_recorder 清理历史数据库旧数据
+- repack_database 清理并压缩历史数据库
 
-带修复冷却机制：同一问题在冷却时间内不重复执行，避免反复重启造成抖动。
-修复历史持久化在 /addon_config/repair_history.json。
+带修复冷却机制：同一问题在冷却时间内不重复执行，避免反复重载造成抖动。
+修复历史仅保存在内存中：插件重启后重新统计（项目既定决策）。
 """
 
-import json
-import os
 import time
 from datetime import datetime
 
-SELF_SLUG = "log_analyzer"  # 与 config.yaml 的 slug 一致，避免自我重启
-MAX_EVENTS = 200
-
-
-def pick_base_dir():
-    """选择持久化根目录。
-
-    HA 容器内 /addon_config 由插件系统自动挂载，存在即直接使用；
-    其余环境（如本地调试）回退到 /tmp 下的独立目录。
-    """
-    for d in ("/addon_config", "/data"):
-        if os.path.isdir(d):
-            return d
-    fallback = "/tmp/log_analyzer"
-    try:
-        os.makedirs(fallback, exist_ok=True)
-    except OSError:
-        pass
-    return fallback
+MAX_EVENTS = 200  # 内存中保留的最近修复事件数
 
 
 # 修复动作的中文名称（用于报告与网页展示）
 ACTION_NAMES = {
     "reload_mqtt": "重载 MQTT 集成",
     "reload_entry": "重载集成",
-    "reload_unavailable_entries": "重载不可用实体的集成",
-    "restart_addon": "重启插件",
     "purge_recorder": "清理历史数据库",
     "repack_database": "压缩历史数据库",
 }
@@ -116,10 +93,6 @@ class Repairer:
                 return self._reload_domain("mqtt")
             if action == "reload_entry":
                 return self._reload_domain(issue.get("target", ""))
-            if action == "reload_unavailable_entries":
-                return self._reload_unavailable(issue)
-            if action == "restart_addon":
-                return self._restart_addon(issue.get("target", ""))
             if action == "purge_recorder":
                 # 清理旧数据可能较慢（树莓派+大库），给足超时
                 code, body = self.col.call_service(
@@ -151,33 +124,3 @@ class Repairer:
             all_ok = all_ok and ok
             details.append("%s(%s) HTTP %s" % (e.get("title", domain), e["entry_id"][:8], code))
         return all_ok, "；".join(details)
-
-    def _reload_unavailable(self, issue):
-        """对不可用实体集中的域（>=3 个）重载对应集成。"""
-        domains = issue.get("domains") or {}
-        entries = self.col.config_entries()
-        details = []
-        all_ok = True
-        acted = False
-        for domain, cnt in sorted(domains.items(), key=lambda kv: -kv[1]):
-            if cnt < 3:
-                continue  # 个别不可定多为设备休眠，不打扰
-            matched = [e for e in entries if e.get("domain") == domain][:2]
-            for e in matched:
-                acted = True
-                code, _ = self.col.reload_entry(e["entry_id"])
-                ok = code == 200
-                all_ok = all_ok and ok
-                details.append("%s×%d HTTP %s" % (domain, cnt, code))
-        if not acted:
-            return False, "无集中的可重载集成（多为电池设备休眠）"
-        return all_ok, "；".join(details)
-
-    def _restart_addon(self, slug):
-        """重启插件，跳过自身。"""
-        if not slug:
-            return False, "目标为空"
-        if slug == SELF_SLUG:
-            return False, "跳过自身，避免循环重启"
-        code, body = self.col.restart_addon(slug)
-        return code in (200, 202), "HTTP %s %s" % (code, body[:200])

@@ -1,5 +1,5 @@
 name: 日志分析与修复
-version: "2.1.3"
+version: "2.2.0"
 slug: log_analyzer
 description: 抓取分析 Home Assistant Core 日志，识别报错、集成失败、MQTT 断开等问题，并修复可修复项
 url: https://github.com/to21github/Log-analysis-and-repair
@@ -31,7 +31,7 @@ options:
   log_lines: 3000
   auto_repair: false
   repair_cooldown: 3600
-  restart_crashed_addons: true
+  restart_crashed_addons: true  # 已废弃保留：动作已移除，仅兼容旧配置
   reload_integrations: true
   repair_mqtt: true
   purge_recorder: true

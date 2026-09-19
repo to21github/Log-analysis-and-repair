@@ -23,17 +23,8 @@ from datetime import datetime
 # 问题存活窗口：由主流程按扫描间隔动态传入（间隔 + 60s 缓冲）。
 # 窗口内未再出现的问题视为已停止，立即不再显示；持续出现则持续显示。
 
-# 兼容两种日志行格式：
-# Core:       2026-09-17 19:00:00.123 ERROR (MainThread) [logger.name] message
-# Supervisor: 25-09-17 19:00:00 INFO (MainThread) [hassio.core] message
-# 注：Supervisor 日志可能带 ANSI 颜色码（\x1b[33m 等），解析前先剥离
-ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-# journal 转发格式标准化：`26-05-18 23:06:14 homeassistant hassio_dns[576]: [ERROR] msg`
-# → 标准格式 `26-05-18 23:06:14 ERROR (MainThread) [supervisor.hassio_dns] msg`
-JOURNAL_RE = re.compile(
-    r"^(?P<time>\d{2,4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?)\s+\S+\s+"
-    r"(?P<logger>\S+)\[\d+\]:\s*\[(?P<level>CRITICAL|ERROR|WARNING)\]\s*(?P<msg>.*)$"
-)
+# Core 日志行格式（数据源仅 Core 日志文件 / /core/logs，两者格式一致）：
+# 2026-09-17 19:00:00.123 ERROR (MainThread) [logger.name] message
 LINE_RE = re.compile(
     r"^(?P<time>\d{2,4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?)\s+"
     r"(?P<level>CRITICAL|ERROR|WARNING)\s+"
@@ -98,6 +89,7 @@ RULES = [
         "id": "db_error",
         "title": "历史数据库（Recorder）异常",
         "pattern": r"(?:database is locked|database disk image is malformed|"
+                   r"disk i/o error|database or disk is full|"
                    r"error executing query|error during schema migration|"
                    r"database file is corrupt)",
         "severity": "error",
@@ -356,7 +348,7 @@ RULES = [
     {
         "id": "integration_not_found",
         "title": "找不到集成",
-        "pattern": r"Unable to find integration (?P<target>[\w_]+)",
+        "pattern": r"(?:Unable to find (?:integration|component) (?P<target>[\w_]+))",
         "severity": "error",
         "action": None,
         "advice": "HA 找不到这个集成，常见原因：configuration.yaml 里集成名拼写"
@@ -381,7 +373,36 @@ RULES = [
         "advice": "YAML 文件里有重名的配置项（后写的会覆盖先写的）。"
                   "请按提示的行号删除重复的那一项。",
     },
+    {
+        "id": "request_handler_error",
+        "title": "请求处理异常",
+        "pattern": r"Error handling request",
+        "severity": "error",
+        "action": None,
+        "advice": "HA 处理 API / Webhook / WebSocket 请求时出错，具体原因看配套的"
+                  "堆栈样本。多为某个集成或自定义代码的 bug，请更新对应集成；"
+                  "若来自自定义 REST 命令，请检查请求参数。",
+    },
+    {
+        "id": "platform_not_found",
+        "title": "平台配置找不到",
+        "pattern": r"Platform not found",
+        "severity": "warning",
+        "action": None,
+        "advice": "配置引用的平台（如 sensor、switch 下的自定义平台）不存在，"
+                  "多为配置里平台名拼写错误、对应集成未安装或已被移除。"
+                  "请核对触发本警告的配置项。",
+    },
 ]
+
+# 规则自检：导入时编译全部规则并保证 id 唯一（重复 id 会导致命中错乱）
+for _rule in RULES:
+    _rule["_re"] = re.compile(_rule["pattern"], re.IGNORECASE)
+_ids = [r["id"] for r in RULES]
+_dup = sorted({i for i in _ids if _ids.count(i) > 1})
+if _dup:
+    raise RuntimeError("analyzer.RULES 存在重复 id：%s" % ", ".join(_dup))
+del _rule, _ids, _dup
 
 
 def integration_from_logger(logger):
@@ -400,17 +421,9 @@ def parse_lines(text, source):
     """把日志文本解析成结构化行，只保留 ERROR / WARNING / CRITICAL。"""
     lines = []
     for raw in (text or "").splitlines():
-        raw = ANSI_RE.sub("", raw)  # 剥离 ANSI 颜色码（Supervisor 日志自带）
         m = LINE_RE.match(raw)
         if not m:
-            # journal 转发格式（hassio_dns / hassio_audio 等容器的输出）
-            jm = JOURNAL_RE.match(raw)
-            if not jm:
-                continue
-            m = jm
-            raw = "%s %s (MainThread) [supervisor.%s] %s" % (
-                jm.group("time"), jm.group("level"),
-                jm.group("logger"), jm.group("msg"))
+            continue
         lines.append({
             "time": m.group("time"),
             "level": m.group("level"),
@@ -424,11 +437,7 @@ def parse_lines(text, source):
 
 
 def _parse_ts(raw):
-    """解析日志行首时间戳，返回 datetime；无法解析返回 None。
-
-    兼容 Core 四位年（2026-09-18 14:48:36.023）与
-    Supervisor / journal 转发的两位年（26-09-18 14:48:36）。
-    """
+    """解析日志行首时间戳，返回 datetime；无法解析返回 None。"""
     m = re.match(r"(\d{2,4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})", raw)
     if not m:
         return None
@@ -476,7 +485,7 @@ def apply_rules(lines):
     issues = {}
     for ln in lines:
         for rule in RULES:
-            m = re.search(rule["pattern"], ln["msg"], re.IGNORECASE)
+            m = rule["_re"].search(ln["msg"])
             if not m:
                 continue
             # 优先取规则捕获组中的目标（target 或备选组 t1/t2），否则从 logger 推断集成
