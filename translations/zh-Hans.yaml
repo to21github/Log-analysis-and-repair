@@ -12,11 +12,11 @@ configuration:
     name: 修复冷却（秒）
     description: 自动模式下同一问题两次修复之间的最小间隔，避免反复重启造成抖动（手动点击修复不受此限制）
   restart_crashed_addons:
-    name: 重启崩溃插件
-    description: 检测到插件状态为 error 时自动重启（本插件自身除外）
+    name: 重启崩溃插件（已废弃）
+    description: 该动作已随插件状态分析移除，此开关仅为兼容旧配置保留，无任何效果
   reload_integrations:
     name: 重载异常集成
-    description: 对初始化失败、实体大量不可用的集成自动执行重载
+    description: 对初始化失败、数据拉取异常的集成自动执行重载
   repair_mqtt:
     name: 修复 MQTT 断连
     description: 检测到 MQTT 连接断开时自动重载 MQTT 集成以恢复连接

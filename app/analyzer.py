@@ -396,13 +396,16 @@ RULES = [
 ]
 
 # 规则自检：导入时编译全部规则并保证 id 唯一（重复 id 会导致命中错乱）
-for _rule in RULES:
-    _rule["_re"] = re.compile(_rule["pattern"], re.IGNORECASE)
-_ids = [r["id"] for r in RULES]
-_dup = sorted({i for i in _ids if _ids.count(i) > 1})
-if _dup:
-    raise RuntimeError("analyzer.RULES 存在重复 id：%s" % ", ".join(_dup))
-del _rule, _ids, _dup
+def _compile_rules():
+    seen = set()
+    for rule in RULES:
+        if rule["id"] in seen:
+            raise RuntimeError("analyzer.RULES 存在重复 id：%s" % rule["id"])
+        seen.add(rule["id"])
+        rule["_re"] = re.compile(rule["pattern"], re.IGNORECASE)
+
+_compile_rules()
+del _compile_rules
 
 
 def integration_from_logger(logger):
