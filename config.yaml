@@ -1,0 +1,55 @@
+name: 日志分析与修复
+version: "1.0.0"
+slug: log_analyzer
+description: 抓取分析 Home Assistant Core 日志，识别报错、集成失败、MQTT 断开等问题，并修复可修复项
+url: https://github.com/to21github/Log-analysis-and-repair
+arch:
+  - aarch64
+  - amd64
+startup: services
+boot: auto
+init: false
+
+# 健康检查：容器内执行的状态探测命令
+healthcheck: wget -q -O /dev/null http://127.0.0.1:8124/api/status || exit 1
+# 看门狗：Supervisor 定期轮询的 HTTP URL（[HOST] 替换为插件容器 IP），非 200 则重启插件
+watchdog: http://[HOST]:8124/api/status
+
+# 访问 Supervisor API（抓取日志 / 重启插件）与 Core API（查询实体 / 重载集成）
+hassio_api: true
+# 调用 /host/info、/core/logs 等 Supervisor 端点需要 manager 角色
+hassio_role: manager
+homeassistant_api: true
+
+map:
+  - homeassistant_config:ro
+  - app_config:rw
+
+# 内置网页面板（Ingress），在左侧边栏显示
+ingress: true
+ingress_port: 8124
+panel_icon: mdi:magnify
+panel_title: 日志分析与修复
+panel_admin: true
+
+options:
+  scan_interval: 300
+  log_lines: 3000
+  auto_repair: false
+  repair_cooldown: 3600
+  restart_crashed_addons: true  # 已废弃保留：动作已移除，仅兼容旧配置
+  reload_integrations: true
+  repair_mqtt: true
+  purge_recorder: true
+  keep_reports: 10
+
+schema:
+  scan_interval: int(60,)
+  log_lines: int(100,)
+  auto_repair: bool
+  repair_cooldown: int(0,)
+  restart_crashed_addons: bool
+  reload_integrations: bool
+  repair_mqtt: bool
+  purge_recorder: bool
+  keep_reports: int(1,)

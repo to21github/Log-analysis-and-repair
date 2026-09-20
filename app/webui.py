@@ -1,0 +1,337 @@
+"""内置 Web 界面（Ingress）。
+
+提供中文深色报告页面：标题区、摘要卡片、问题列表，
+支持右上角圆形按钮手动触发「立即扫描」与逐项「修复」。
+监听端口需与 config.yaml 的 ingress_port 一致。
+"""
+
+import json
+import logging
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+_log = logging.getLogger("log_analyzer.webui")
+
+# Ingress 可信代理地址（HA Supervisor 反代来源），写操作仅信任该来源
+INGRESS_PROXY_ADDRESS = "172.30.32.2"
+
+
+def _is_trusted_proxy(address):
+    """校验请求来源是否为 Ingress 可信代理（兼容 IPv6 映射前缀）"""
+    return isinstance(address, str) and address.replace("::ffff:", "", 1) == INGRESS_PROXY_ADDRESS
+
+PAGE = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>日志分析与修复</title>
+<style>
+:root { color-scheme:light dark;
+        --blue:#03a9f4; --red:#e8453c; --orange:#f97316; --green:#19be5d;
+        --gray:#7b818d; --bg:#fafafa; --card:#ffffff; --text:#171b20;
+        --title:#171b20; --line:#d8d8d8; --deep:#f0f0f0; --muted:#7b818d; }
+/* 深色模式（跟随系统） */
+@media (prefers-color-scheme: dark) {
+  :root { --gray:#9a9a9a; --bg:#111111; --card:#181818; --text:#e8e8e8;
+          --title:#ffffff; --line:#363636; --deep:#131317; --muted:#a0a0a0; }
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+/* 背景固定：html 层同色，禁止横向滚动，避免移动端左右拖动时背景乱跑露白 */
+html { background:var(--bg); overflow-x:hidden; overscroll-behavior-x:none; }
+body { font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC",
+       "Microsoft YaHei",sans-serif;
+       background:var(--bg); color:var(--text);
+       padding:24px clamp(30px,4vw,64px) 30px; max-width:1378px;
+       margin:0 auto; overflow-x:hidden; }
+header { display:flex; align-items:flex-start; justify-content:space-between;
+         gap:24px; flex-wrap:wrap; margin-bottom:24px; }
+h1 { font-size:22px; font-weight:600; line-height:1.1; color:var(--title);
+     letter-spacing:.5px; }
+.subtitle { color:#9a9a9a; font-size:12px; font-weight:400; line-height:1.3; margin-top:8px; }
+.iconbtn { width:46px; height:46px; border-radius:50%; background:var(--card);
+           border:1px solid var(--line); cursor:pointer; display:flex;
+           align-items:center; justify-content:center; flex-shrink:0; }
+.iconbtn:hover { border-color:var(--muted); }
+.iconbtn:disabled { cursor:not-allowed; opacity:.55; }
+.iconbtn svg { width:22px; height:22px; stroke:var(--muted); transform:scaleX(-1); }
+.iconbtn:hover:not(:disabled) svg { stroke:var(--text); }
+.iconbtn.scanning svg { animation:r 1s linear infinite; }
+@keyframes r { from { transform:scaleX(-1) rotate(0deg); }
+               to { transform:scaleX(-1) rotate(360deg); } }
+.panel { background:var(--card); border:1px solid var(--line); border-radius:12px;
+         display:grid; grid-template-columns:repeat(3,1fr); margin-bottom:20px;
+         overflow:hidden; }
+.panel .cell { padding:16px 10px; display:flex; flex-direction:column;
+               align-items:center; justify-content:center; text-align:center; }
+.panel .cell + .cell { border-left:1px solid var(--line); }
+.panel .num { font-size:36px; font-weight:600; color:var(--text); margin-top:4px; }
+.panel .lab { font-size:14px; color:var(--gray); }
+.panel .num.red { color:var(--red); } .panel .num.orange { color:var(--orange); }
+.panel .num.green { color:var(--green); } .panel .num.blue { color:var(--blue); }
+@media (max-width:560px) {
+  /* 主标题统一规格：22px / 600 / 0.5px / 1.1（继承桌面端定义） */
+  .subtitle { font-weight:400; }
+  /* 移动端统计卡片压缩为单行，避免分 3 行显示 */
+  .panel { display:flex; }
+  .panel .cell { flex:1; min-width:0; padding:12px 2px; border-top:none; }
+  .panel .cell + .cell { border-left:1px solid var(--line); }
+  .panel .num { font-size:24px; margin-top:2px; }
+  .panel .lab { font-size:12px; }
+}
+/* 移动端刷新按钮缩小至 40×40（SVG 保持 22×22） */
+@media (max-width:980px) {
+  body { padding:54px 30px 64px; }
+}
+@media (max-width:700px) {
+  .iconbtn { width:40px; height:40px; }
+  body { padding:40px 30px 60px; }
+  .subtitle { margin-top:4px; }
+}
+h2 { font-size:15px; margin:18px 0 10px; color:var(--text); }
+.issue { background:var(--card); border:1px solid var(--line); border-radius:12px;
+         padding:14px; margin-bottom:10px; }
+.issue .head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.issue .head .t { font-weight:600; font-size:15px; color:var(--text);
+                  flex:1 1 auto; min-width:0; word-break:break-word;
+                  overflow-wrap:anywhere; }
+.badge { font-size:11px; padding:2px 8px; border-radius:10px; color:#fff; }
+.badge.error { background:var(--red); } .badge.warning { background:var(--orange); }
+.badge.info { background:var(--blue); }
+.badge.ok { background:var(--green); } .badge.fail { background:var(--red); }
+.badge.cooldown { background:var(--gray); } .badge.disabled { background:var(--gray); }
+.fixbtn { margin-left:auto; padding:4px 14px; border:none; border-radius:6px;
+  background:var(--green); color:#111; font-size:12px; font-weight:600;
+  cursor:pointer; white-space:nowrap; }
+.fixbtn:hover { opacity:.85; }
+.count { color:var(--gray); font-size:12px; }
+.target { font-family:monospace; background:var(--deep); border-radius:4px;
+          padding:1px 6px; font-size:12px; color:var(--muted); }
+.advice { font-size:13px; color:#a0a2aa; margin-top:8px; line-height:1.6; }
+summary { font-size:12px; color:var(--blue); cursor:pointer; }
+pre { background:var(--deep); border:1px solid var(--line); border-radius:8px;
+      padding:8px 10px; font-size:12px; overflow:auto; margin-top:6px;
+      white-space:pre-wrap; word-break:break-all; color:var(--muted); }
+.empty { text-align:center; color:var(--gray); padding:36px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>日志分析与修复</h1>
+    <div class="subtitle" id="subtitle">Home Assistant 系统日志分析与修复问题</div>
+  </div>
+  <button id="scanBtn" class="iconbtn" onclick="doScan()" title="立即扫描">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="1 4 1 10 7 10"/>
+      <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+    </svg>
+  </button>
+</header>
+
+<div class="panel" id="cards"></div>
+<h2>问题列表</h2>
+<div id="issues"></div>
+
+<script>
+const SEV = {error:'错误', warning:'警告', info:'提示'};
+const STATUS = {ok:'已修复', fail:'修复失败', cooldown:'冷却中', disabled:'自动修复未开启'};
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let lastReportTime;
+let fetchFailed = false;
+const SUBTITLE_DEFAULT = 'Home Assistant 系统日志分析与修复问题';
+async function refresh() {
+  try {
+    const st = await (await fetch('api/status')).json();
+    if (fetchFailed) {
+      fetchFailed = false;
+      document.getElementById('subtitle').textContent = SUBTITLE_DEFAULT;
+    }
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = !!st.scanning;
+    btn.classList.toggle('scanning', !!st.scanning);
+    btn.title = st.scanning ? '扫描中…' : '立即扫描';
+
+    // 报告版本（report_time）变化时才拉取全量报告，降低轮询流量
+    if (st.report_time !== lastReportTime) {
+      lastReportTime = st.report_time;
+      const rep = await (await fetch('api/report')).json();
+      render(rep);
+    }
+  } catch (e) {
+    // 暴露连接错误而不是静默吞掉, 避免数据断流而无感知; 下轮轮询自动重试
+    fetchFailed = true;
+    document.getElementById('subtitle').textContent = '⚠ 无法连接服务，正在重试…';
+  }
+}
+
+function cell(num, label, cls) {
+  return '<div class="cell"><div class="lab">' + label +
+         '</div><div class="num ' + cls + '">' + num + '</div></div>';
+}
+
+function render(rep) {
+  const cardsEl = document.getElementById('cards');
+  const issues = document.getElementById('issues');
+  if (!rep || !rep.generated_at) {
+    cardsEl.innerHTML = '';
+    issues.innerHTML = '<div class="empty">暂无报告，请点击右上角按钮扫描生成。</div>';
+    return;
+  }
+  const s = rep.stats || {}, m = rep.summary || {};
+  const cells = [
+    cell(m.issue_count ?? 0, '发现问题', ''),
+    cell(m.repairable ?? 0, '可修复', 'blue'),
+    cell(m.repaired ?? 0, '已修复', 'green'),
+  ];
+  cardsEl.innerHTML = cells.join('');
+
+  if (!rep.issues || !rep.issues.length) {
+    issues.innerHTML = '<div class="empty">未发现明显异常，系统运行正常。</div>';
+    return;
+  }
+  issues.innerHTML = rep.issues.map(i => {
+    const rr = i.repair_result;
+    let badge = '';
+    if (rr) badge = '<span class="badge ' + rr.status + '">' +
+      (STATUS[rr.status] || rr.status) + '</span>';
+    const cnt = i.count > 1 ? '<span class="count">出现 ' + i.count + ' 次</span>' : '';
+    const tgt = i.target ? '<span class="target">' + esc(i.target) + '</span>'
+      : (i.targets && i.targets.length
+        ? '<span class="target">' + esc(i.targets.join('、')) + '</span>' : '');
+    // 可修复且尚未修复成功的问题显示「修复」按钮（手动模式核心交互）
+    const btn = (i.action && !(rr && rr.status === 'ok'))
+      ? '<button class="fixbtn" data-id="' + esc(i.id || '') + '" data-target="' +
+        esc(i.target || '') + '" onclick="doRepair(this.dataset.id,this.dataset.target)">修复</button>'
+      : '';
+    const samples = (i.samples && i.samples.length)
+      ? '<details><summary>查看日志样本</summary><pre>' +
+        esc(i.samples.join('\\n')) + '</pre></details>' : '';
+    const advice = i.advice ? '<div class="advice">' + esc(i.advice) + '</div>' : '';
+    const detail = (rr && rr.detail) ? '<div class="advice">修复详情：' +
+      esc(rr.detail) + '</div>' : '';
+    return '<div class="issue"><div class="head">' +
+      '<span class="badge ' + i.severity + '">' + (SEV[i.severity] || i.severity) + '</span>' +
+      '<span class="t">' + esc(i.title) + '</span>' + tgt + cnt + badge + btn +
+      '</div>' + advice + detail + samples + '</div>';
+  }).join('');
+}
+
+async function doScan() {
+  try { await fetch('api/scan', {method: 'POST'}); }
+  catch (e) {
+    // 触发失败时同步错误态, 而非静默无响应
+    document.getElementById('subtitle').textContent = '⚠ 触发扫描失败，请重试';
+  }
+  setTimeout(refresh, 800);
+}
+
+async function doRepair(id, target) {
+  try {
+    const r = await fetch('api/repair', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: id, target: target})});
+    const res = await r.json();
+    if (res.status !== 'ok' && res.detail) alert('修复失败：' + res.detail);
+    refresh();
+  } catch (e) { alert('请求失败，请重试'); }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
+"""
+
+
+class WebUI:
+    """报告网页服务。
+
+    参数：
+      port          监听端口（与 config.yaml 的 ingress_port 一致）
+      state         共享状态 dict（scanning / last_scan / next_scan /
+                    last_report / report_time）
+      trigger_scan  触发一次扫描的回调
+      read_report   读取最新报告的回调（启动时磁盘回读）
+      repair_one    手动单项修复回调（网页「修复」按钮触发）
+    """
+
+    def __init__(self, port, state, trigger_scan, read_report, repair_one=None):
+        self.port = port
+        self.state = state
+        self.trigger_scan = trigger_scan
+        self.read_report = read_report
+        self.repair_one = repair_one
+        ui = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def _send(self, code, content, ctype):
+                payload = content.encode("utf-8")
+                self.send_response(code)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(payload)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def do_GET(self):
+                if self.path in ("/", "/index.html"):
+                    self._send(200, PAGE, "text/html; charset=utf-8")
+                elif self.path == "/api/status":
+                    body = json.dumps({
+                        "scanning": ui.state.get("scanning", False),
+                        "last_scan": ui.state.get("last_scan"),
+                        "next_scan": ui.state.get("next_scan"),
+                        "report_time": ui.state.get("report_time"),
+                    }, ensure_ascii=False)
+                    self._send(200, body, "application/json; charset=utf-8")
+                elif self.path == "/api/report":
+                    report = ui.state.get("last_report") or ui.read_report()
+                    body = json.dumps(report, ensure_ascii=False) if report else "{}"
+                    self._send(200, body, "application/json; charset=utf-8")
+                else:
+                    self._send(404, '{"error":"not found"}', "application/json; charset=utf-8")
+
+            def do_POST(self):
+                # 写操作仅信任 Ingress 可信代理（Supervisor 反代来源 IP），
+                # 特征请求头可被伪造；防止同网络内其他容器直连端口触发扫描 / 修复
+                if not _is_trusted_proxy(self.client_address[0]):
+                    self._send(403,
+                               '{"ok":false,"error":"仅允许通过 Home Assistant 入口访问该接口"}',
+                               "application/json; charset=utf-8")
+                    return
+                if self.path == "/api/scan":
+                    threading.Thread(target=ui.trigger_scan, daemon=True).start()
+                    self._send(200, '{"started":true}', "application/json; charset=utf-8")
+                elif self.path == "/api/repair":
+                    if not ui.repair_one:
+                        self._send(501, '{"status":"fail","detail":"未启用"}',
+                                   "application/json; charset=utf-8")
+                        return
+                    try:
+                        length = int(self.headers.get("Content-Length") or 0)
+                        payload = json.loads(self.rfile.read(length) or b"{}")
+                    except ValueError:
+                        payload = {}
+                    res = ui.repair_one(payload)
+                    self._send(200, json.dumps(res, ensure_ascii=False),
+                               "application/json; charset=utf-8")
+                else:
+                    self._send(404, '{"error":"not found"}', "application/json; charset=utf-8")
+
+            def log_message(self, *args):
+                pass  # 静默访问日志，避免刷屏
+
+        self.httpd = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+        self.httpd.daemon_threads = True
+
+    def start(self):
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        _log.info("Web 界面已启动，监听端口 %d（Ingress）", self.port)

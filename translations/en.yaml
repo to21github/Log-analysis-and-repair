@@ -1,0 +1,28 @@
+configuration:
+  scan_interval:
+    name: Scan interval (seconds)
+    description: How often logs are automatically fetched and analyzed; minimum 60 seconds
+  log_lines:
+    name: Log lines
+    description: Maximum number of lines fetched from the end of the Core log each time
+  auto_repair:
+    name: Auto repair
+    description: Off by default (manual mode). When on, repairable issues found during a scan are fixed automatically; when off, use the "Repair" button next to each issue in the web panel
+  repair_cooldown:
+    name: Repair cooldown (seconds)
+    description: Minimum interval between two automatic repairs of the same issue, preventing jitter caused by repeated restarts (manual repair clicks are not affected)
+  restart_crashed_addons:
+    name: Restart crashed add-ons (deprecated)
+    description: This action was removed along with add-on status analysis; the switch is kept only for compatibility with old configurations and has no effect
+  reload_integrations:
+    name: Reload failed integrations
+    description: Automatically reload integrations that failed to set up or fetch data
+  repair_mqtt:
+    name: Repair MQTT disconnections
+    description: Automatically reload the MQTT integration to restore the connection when an MQTT disconnection is detected
+  purge_recorder:
+    name: Purge history database
+    description: Automatically purge old history data to reduce load when the database reports errors (e.g. locked)
+  keep_reports:
+    name: Reports to keep
+    description: Maximum number of archived reports to keep; the oldest ones are deleted automatically once exceeded
